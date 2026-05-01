@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Auto-generated smoke test for the {{ name }} graph."""
+
+from __future__ import annotations
+
+import pytest
+
+
+@pytest.mark.integration
+def test_smoke() -> None:
+    # Smoke: import the State to confirm the module loads.
+    from .state import State
+
+    assert State() is not None
