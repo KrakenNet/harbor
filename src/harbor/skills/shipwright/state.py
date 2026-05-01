@@ -26,7 +26,11 @@ class SpecSlot(BaseModel):
     name: str
     value: Any
     origin: SlotOrigin
-    confidence: float = 1.0
+    # Integer percent (0-100). FR-4 forbids floats in the structural hash
+    # payload (model_json_schema includes the default), so ``confidence`` is
+    # an int. ``100`` = full confidence; lower values flag rule/LLM-derived
+    # slots so downstream nodes can prefer human-supplied answers.
+    confidence: int = 100
 
 
 with warnings.catch_warnings():

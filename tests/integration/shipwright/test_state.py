@@ -26,7 +26,7 @@ def test_state_defaults_to_new_mode() -> None:
 @pytest.mark.unit
 def test_spec_slot_records_origin() -> None:
     slot = SpecSlot(name="purpose", value="triage", origin="user")
-    assert slot.confidence == 1.0
+    assert slot.confidence == 100
     assert slot.origin == "user"
 
 

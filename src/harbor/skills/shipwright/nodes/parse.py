@@ -43,7 +43,7 @@ class ParseBrief(NodeBase):
             return {"slots": {}}
         parsed = self._call_predictor(brief)
         slots = {
-            name: SpecSlot(name=name, value=value, origin="llm", confidence=0.7)
+            name: SpecSlot(name=name, value=value, origin="llm", confidence=70)
             for name, value in parsed.items()
         }
         return {"slots": slots}
