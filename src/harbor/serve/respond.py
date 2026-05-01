@@ -59,7 +59,7 @@ from typing import TYPE_CHECKING, Any
 
 from harbor.errors import CapabilityError, HarborRuntimeError
 from harbor.runtime.events import BosunAuditEvent
-from harbor.serve.contextvars import _audit_sink_var
+from harbor.serve.contextvars import _audit_sink_var  # pyright: ignore[reportPrivateUsage]
 
 if TYPE_CHECKING:
     from harbor.checkpoint.protocol import RunSummary
