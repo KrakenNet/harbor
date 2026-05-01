@@ -66,9 +66,6 @@ def make_stub_response(request_id: str = "req-stub-cve-001") -> BrokerResponse:
         scope_restrictions={},
         attestation_token=None,
         duration_ms=12,
-        cap_breached=None,
-        fact_set_hash=None,
-        source_session_signatures={},
     )
 
 

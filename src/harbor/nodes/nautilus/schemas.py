@@ -5,13 +5,15 @@ Re-exports :func:`nautilus.BrokerResponse.model_json_schema` so the
 Harbor tool/registry surface can publish the broker response shape
 without hand-rolling a duplicate definition.
 
-Nautilus 0.1.2 does NOT expose a ``BrokerRequest`` Pydantic model: the
-broker's :meth:`Broker.arequest` accepts ``agent_id``, ``intent``,
-``context``, and ``fact_set_hash`` as plain keyword arguments. The
-"request schema" exposed here is therefore synthesised from those
-parameters via :class:`pydantic.create_model` -- it documents the
-public call shape downstream tooling can probe (e.g. registry-driven
-introspection, OpenAPI generation in the serve layer).
+Nautilus 0.1.4 does NOT expose a ``BrokerRequest`` Pydantic model: the
+broker's :meth:`Broker.arequest` accepts ``agent_id``, ``intent``, and
+``context`` as plain keyword arguments. The "request schema" exposed
+here is therefore synthesised from those parameters via
+:class:`pydantic.create_model` -- it documents the public call shape
+downstream tooling can probe (e.g. registry-driven introspection,
+OpenAPI generation in the serve layer).
+
+Removed in nautilus 0.1.4 (vs 0.1.2): the ``fact_set_hash`` keyword.
 """
 
 from __future__ import annotations
@@ -37,7 +39,7 @@ def broker_response_schema() -> dict[str, Any]:
 def broker_request_schema() -> dict[str, Any]:
     """Return a JSON Schema describing :meth:`Broker.arequest` keyword arguments.
 
-    Synthesised because nautilus 0.1.2 has no public ``BrokerRequest``
+    Synthesised because nautilus 0.1.4 has no public ``BrokerRequest``
     Pydantic model. Fields mirror the broker's keyword parameters so
     downstream registry tooling has a stable input contract.
     """
@@ -46,6 +48,5 @@ def broker_request_schema() -> dict[str, Any]:
         agent_id=(str, ...),
         intent=(str, ...),
         context=(dict[str, Any] | None, None),
-        fact_set_hash=(str | None, None),
     )
     return TypeAdapter(request_model).json_schema()

@@ -53,13 +53,13 @@ from nautilus import Broker, BrokerResponse
 pytestmark = [pytest.mark.serve, pytest.mark.integration]
 
 
-_PINNED_VERSION = "0.1.2"
+_PINNED_VERSION = "0.1.4"
 """The canonical ``nautilus-rkm`` distribution pin per :file:`pyproject.toml`."""
 
 
 @pytest.mark.serve
-def test_nautilus_distribution_pin_is_0_1_2() -> None:
-    """``importlib.metadata.version("nautilus-rkm") == "0.1.2"``.
+def test_nautilus_distribution_pin_is_0_1_4() -> None:
+    """``importlib.metadata.version("nautilus-rkm") == "0.1.4"``.
 
     Distribution name is ``nautilus-rkm`` (per :file:`pyproject.toml`'s
     ``[project] dependencies`` block); the import name is ``nautilus``.
@@ -137,11 +137,15 @@ def test_brokerresponse_carries_canonical_fields() -> None:
     A field rename or removal surfaces here before downstream node
     wiring breaks.
 
-    The canonical field set per ``nautilus-rkm==0.1.2``:
+    The canonical field set per ``nautilus-rkm==0.1.4``:
     ``request_id``, ``data``, ``sources_queried``, ``sources_denied``,
     ``sources_skipped``, ``sources_errored``, ``scope_restrictions``,
-    ``attestation_token``, ``duration_ms``, ``cap_breached``,
-    ``fact_set_hash``, ``source_session_signatures``.
+    ``attestation_token``, ``duration_ms``.
+
+    Dropped between 0.1.2 and 0.1.4: ``cap_breached``, ``fact_set_hash``,
+    ``source_session_signatures``. If Harbor's BrokerNode envelope code
+    still references them, surface that drift here before downstream
+    wiring breaks.
     """
     expected_fields = {
         "request_id",
@@ -153,9 +157,6 @@ def test_brokerresponse_carries_canonical_fields() -> None:
         "scope_restrictions",
         "attestation_token",
         "duration_ms",
-        "cap_breached",
-        "fact_set_hash",
-        "source_session_signatures",
     }
     actual_fields = set(BrokerResponse.model_fields.keys())
     missing = expected_fields - actual_fields

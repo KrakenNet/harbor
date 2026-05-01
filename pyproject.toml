@@ -45,16 +45,11 @@ dependencies = [
     "httpx>=0.27",
     "cronsim>=2.6",
     "pyjwt[crypto]>=2.8",
-    "nautilus-rkm>=0.1.2",
+    "nautilus-rkm>=0.1.4",
     "blake3>=0.4",
     "argon2-cffi>=23.1",
     "jinja2>=3.1.6",
 ]
-
-[tool.uv.sources]
-# nautilus-rkm is not on PyPI; resolve from the sibling leagues/ path.
-# Path is relative to this pyproject.toml at leagues/harbor/.
-nautilus-rkm = { path = "../nautilus", editable = false }
 
 [project.optional-dependencies]
 ml = [
