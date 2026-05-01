@@ -5,6 +5,33 @@
 The harbor-knowledge surface — Stores, Skills, retrieval, memory, and
 consolidation built on top of harbor-engine.
 
+### Added (Plan 1.5 — Shipwright runnable via `harbor run`)
+- IR `state_class: str | None` field — declare a Pydantic `BaseModel`
+  subclass via `module.path:ClassName` instead of the primitive
+  `state_schema: dict[str, str]` placeholder. Mutually exclusive with a
+  non-empty `state_schema`.
+- `module.path:ClassName` resolution for `NodeSpec.kind` — short kinds
+  (`echo`/`halt`/`dspy`) still match the static factory table; any kind
+  containing `:` is imported via `importlib` and validated as a
+  `NodeBase` subclass.
+- `harbor run --lm-url/--lm-model/--lm-key/--lm-timeout` flags —
+  `harbor run` calls `dspy.configure(lm=dspy.LM(...))` before driving
+  the graph when `--lm-url` and `--lm-model` are both set.
+- `--inputs key=value` honors `state_class` by walking the resolved
+  BaseModel's `model_fields`.
+
+### Changed
+- Bumped `nautilus-rkm` pin 0.1.3 → 0.1.4 (0.1.3 shipped Py2 except
+  syntax that crashed import on Python 3.13). Mirrors three dropped
+  `BrokerResponse` fields (`cap_breached`, `fact_set_hash`,
+  `source_session_signatures`) and the dropped `fact_set_hash` kwarg
+  on `Broker.arequest`. Removes the local sibling-path override now
+  that nautilus is on PyPI.
+- `SpecSlot.confidence`: `float = 1.0` → `int = 100` (percent). FR-4
+  forbids floats anywhere in the structural-hash payload, including
+  `model_json_schema` defaults; the field's old default tripped the
+  hash the moment `State` landed under `state_class`.
+
 ### Added
 - Five Store Protocols (`harbor.stores`): `VectorStore`, `GraphStore`,
   `DocStore`, `MemoryStore`, `FactStore` — each with `bootstrap`, `health`,
