@@ -107,11 +107,7 @@ broker_request = "harbor.tools.nautilus.broker_request:broker_request"
 [dependency-groups]
 dev = [
     "ruff>=0.6",
-    # Cap below 1.1.409 — that release dropped the CLI ``--strict`` flag
-    # the serve-test job uses. Bump once we migrate to a config-file
-    # equivalent (``pyrightconfig.json`` or pyproject ``[tool.pyright]
-    # strict``).
-    "pyright>=1.1.380,<1.1.409",
+    "pyright>=1.1.380",
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "pytest-cov>=5.0",

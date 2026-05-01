@@ -3497,7 +3497,7 @@ dev = [
     { name = "codespell", specifier = ">=2.2" },
     { name = "hypothesis", specifier = ">=6.0" },
     { name = "pre-commit", specifier = ">=3.7" },
-    { name = "pyright", specifier = ">=1.1.380,<1.1.409" },
+    { name = "pyright", specifier = ">=1.1.380" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-asyncio", specifier = ">=0.23" },
     { name = "pytest-benchmark", specifier = ">=5.2.3" },
