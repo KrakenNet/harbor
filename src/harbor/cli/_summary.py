@@ -132,7 +132,7 @@ class SummaryRenderer:
                 "state_summary": state_dump,
                 "checkpoint": str(checkpoint),
             }
-            self._console.print(json.dumps(payload))
+            self._console.print(json.dumps(payload), soft_wrap=True, no_wrap=True)
             return
 
         # Human summary.

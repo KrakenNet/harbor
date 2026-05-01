@@ -87,6 +87,7 @@ class ProgressPrinter:
         self._llm_calls = 0
         self._tool_tokens = 0
         self._durations: dict[str, int] = {}
+        self._final_state: dict[str, Any] | None = None
 
     async def consume(self, bus: EventBus) -> None:
         """Receive events from ``bus`` until terminal/aclose.
@@ -98,9 +99,9 @@ class ProgressPrinter:
         with contextlib.suppress(anyio.EndOfStream, anyio.ClosedResourceError):
             while True:
                 ev: Any = await bus.receive()
-                self._handle(ev)
+                self.feed(ev)
                 if ev.type == "result":
-                    self._close_current(ev.ts)
+                    self.finalize(ev.ts)
                     return
 
     def stats(self) -> ProgressStats:
@@ -111,7 +112,19 @@ class ProgressPrinter:
             node_durations_ms=dict(self._durations),
         )
 
+    def final_state_dict(self) -> dict[str, Any] | None:
+        """Return ``ResultEvent.final_state`` if a terminal event was seen."""
+        return self._final_state
+
     # -- handlers -------------------------------------------------------
+
+    def feed(self, ev: Any) -> None:
+        """Public hook: process one event (used by external drivers)."""
+        self._handle(ev)
+
+    def finalize(self, end_ts: datetime) -> None:
+        """Public hook: close the in-flight node line."""
+        self._close_current(end_ts)
 
     def _handle(self, ev: Any) -> None:
         kind: str = ev.type
@@ -125,6 +138,8 @@ class ProgressPrinter:
             self._on_error(ev)
         elif kind == "waiting_for_input":
             self._on_waiting(ev)
+        elif kind == "result":
+            self._final_state = dict(getattr(ev, "final_state", {}) or {})
 
     def _on_transition(self, ev: Any) -> None:
         # Close out previous node (if any) and open the next.
