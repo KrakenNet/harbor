@@ -3,37 +3,45 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
-import dspy
+import dspy  # pyright: ignore[reportMissingTypeStubs]
 
 from harbor.nodes.base import ExecutionContext, NodeBase
-from harbor.skills.shipwright.state import SpecSlot, State
+from harbor.skills.shipwright.state import SpecSlot
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 
-class _BriefSignature(dspy.Signature):
+class _BriefSignature(dspy.Signature):  # pyright: ignore[reportUnknownMemberType]
     """Extract the artifact kind, purpose, and any explicit node hints from a brief."""
 
-    brief: str = dspy.InputField()
-    kind: str = dspy.OutputField(desc="'graph' or 'pack'")
-    purpose: str = dspy.OutputField(desc="one-sentence purpose")
-    node_hints: list[str] = dspy.OutputField(desc="node names mentioned, possibly empty")
+    brief: str = dspy.InputField()  # pyright: ignore[reportUnknownMemberType]
+    kind: str = dspy.OutputField(desc="'graph' or 'pack'")  # pyright: ignore[reportUnknownMemberType]
+    purpose: str = dspy.OutputField(desc="one-sentence purpose")  # pyright: ignore[reportUnknownMemberType]
+    node_hints: list[str] = dspy.OutputField(desc="node names mentioned, possibly empty")  # pyright: ignore[reportUnknownMemberType]
 
 
 class ParseBrief(NodeBase):
     """LLM-driven brief parser. `must_stub: true` in topology — replay-deterministic."""
 
     def __init__(self) -> None:
-        self._predictor = dspy.Predict(_BriefSignature)
+        self._predictor = dspy.Predict(_BriefSignature)  # pyright: ignore[reportUnknownMemberType]
 
     def _call_predictor(self, brief: str) -> dict[str, Any]:
-        result = self._predictor(brief=brief)
-        return {"kind": result.kind, "purpose": result.purpose, "node_hints": result.node_hints}
+        result = self._predictor(brief=brief)  # pyright: ignore[reportUnknownMemberType]
+        return {
+            "kind": result.kind,  # type: ignore[attr-defined]
+            "purpose": result.purpose,  # type: ignore[attr-defined]
+            "node_hints": result.node_hints,  # type: ignore[attr-defined]
+        }
 
-    async def execute(self, state: State, ctx: ExecutionContext) -> dict[str, Any]:
-        if not state.brief:
+    async def execute(self, state: BaseModel, ctx: ExecutionContext) -> dict[str, Any]:
+        brief = cast("str | None", getattr(state, "brief", None))
+        if not brief:
             return {"slots": {}}
-        parsed = self._call_predictor(state.brief)
+        parsed = self._call_predictor(brief)
         slots = {
             name: SpecSlot(name=name, value=value, origin="llm", confidence=0.7)
             for name, value in parsed.items()

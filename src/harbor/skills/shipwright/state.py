@@ -42,14 +42,14 @@ with warnings.catch_warnings():
         slot: str
         prompt: str
         kind: QuestionKind
-        schema: dict[str, Any]
+        schema: dict[str, Any]  # pyright: ignore[reportIncompatibleMethodOverride]
         origin: QuestionOrigin
 
 
 class VerifierResult(BaseModel):
     kind: VerifierKind
     passed: bool
-    findings: list[dict[str, Any]] = Field(default_factory=list)
+    findings: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])
     duration_ms: int = 0
 
 
@@ -67,15 +67,17 @@ class State(BaseModel):
 
     # Spec accumulation
     slots: Annotated[dict[str, SpecSlot], Mirror()] = Field(default_factory=dict)
-    open_questions: Annotated[list[Question], Mirror()] = Field(default_factory=list)
-    answers: list[dict[str, Any]] = Field(default_factory=list)
+    open_questions: Annotated[list[Question], Mirror()] = Field(default_factory=list[Question])
+    answers: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])
 
     # Synthesis
     artifact_files: dict[str, str] = Field(default_factory=dict)
     locked_tests: Annotated[list[str], Mirror()] = Field(default_factory=list)
 
     # Verification
-    verifier_results: Annotated[list[VerifierResult], Mirror()] = Field(default_factory=list)
+    verifier_results: Annotated[list[VerifierResult], Mirror()] = Field(
+        default_factory=list[VerifierResult]
+    )
     fix_attempts: Annotated[int, Mirror()] = 0
 
     # Output

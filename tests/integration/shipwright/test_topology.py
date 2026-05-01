@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-
 SHIPWRIGHT = Path(__file__).resolve().parents[3] / "src" / "harbor" / "skills" / "shipwright"
 
 
