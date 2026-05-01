@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Interview nodes — GapCheck (rule-driven floor; LLM ceiling lands in Task 8)."""
+"""Interview nodes — GapCheck (rule-driven floor) and ProposeQuestions (LLM ceiling)."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
+
+import dspy  # pyright: ignore[reportMissingTypeStubs]
 
 from harbor.nodes.base import ExecutionContext, NodeBase
 from harbor.skills.shipwright._pack import fresh_engine, load_pack
@@ -75,3 +77,61 @@ class GapCheck(NodeBase):
                 )
             )
         return {"open_questions": questions}
+
+
+class _ProposeQuestionsSignature(dspy.Signature):  # pyright: ignore[reportUnknownMemberType]
+    """Surface edge-case and soft questions the rules would not have asked.
+
+    Be aggressive about: failure modes, timeouts, empty inputs, conflicts,
+    cleared-profile constraints. Skip anything in `existing`.
+    """
+
+    slots: dict = dspy.InputField()  # pyright: ignore[reportUnknownMemberType, reportMissingTypeArgument]
+    existing: list = dspy.InputField()  # pyright: ignore[reportUnknownMemberType, reportMissingTypeArgument]
+    proposed: list = dspy.OutputField(  # pyright: ignore[reportUnknownMemberType, reportMissingTypeArgument]
+        desc="list of {slot, prompt, kind in {'edge_case','soft'}}",
+    )
+
+
+class ProposeQuestions(NodeBase):
+    """LLM ceiling — proposes additional edge-case + soft questions.
+
+    Marked `must_stub` in topology. Tests stub `_call_predictor` directly.
+    """
+
+    def __init__(self) -> None:
+        self._predictor = dspy.ChainOfThought(_ProposeQuestionsSignature)  # pyright: ignore[reportUnknownMemberType]
+
+    def _call_predictor(
+        self, slots: dict[str, Any], existing: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        result = self._predictor(slots=slots, existing=existing)  # pyright: ignore[reportUnknownMemberType]
+        return list(result.proposed)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+
+    async def execute(self, state: BaseModel, ctx: ExecutionContext) -> dict[str, Any]:
+        kind = getattr(state, "kind", None)
+        existing_qs = list(getattr(state, "open_questions", []))
+        if kind is None:
+            return {"open_questions": existing_qs}
+
+        slots: dict[str, Any] = getattr(state, "slots", {}) or {}
+        slot_payload = {n: getattr(s, "value", s) for n, s in slots.items()}
+        existing_payload = [q.model_dump() for q in existing_qs]
+
+        proposed = self._call_predictor(slot_payload, existing_payload)
+
+        existing_slots = {q.slot for q in existing_qs}
+        merged: list[Question] = list(existing_qs)
+        for p in proposed:
+            if p["slot"] in existing_slots:
+                continue
+            merged.append(
+                Question(
+                    slot=p["slot"],
+                    prompt=p["prompt"],
+                    kind=p.get("kind", "soft"),  # type: ignore[arg-type]
+                    schema={"type": "string"},
+                    origin="llm",
+                )
+            )
+        return {"open_questions": merged}
