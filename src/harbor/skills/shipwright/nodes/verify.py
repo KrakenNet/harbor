@@ -129,3 +129,44 @@ class VerifyTests(NodeBase):
         )
         prior: list[VerifierResult] = list(getattr(state, "verifier_results", []))
         return {"verifier_results": [*prior, result]}
+
+
+class VerifySmoke(NodeBase):
+    """Run `harbor simulate` against the synthesized graph in a tmp work_dir."""
+
+    def __init__(self, work_dir: Path | None = None, timeout_s: int = 60) -> None:
+        self._work_dir_override = work_dir
+        self._timeout_s = timeout_s
+
+    async def execute(self, state: BaseModel, ctx: ExecutionContext) -> dict[str, Any]:
+        work = self._work_dir_override or Path(f"/tmp/shipwright-{ctx.run_id}")
+        work.mkdir(parents=True, exist_ok=True)
+        artifact_files: dict[str, str] = getattr(state, "artifact_files", {}) or {}
+        _write_files(work, artifact_files)
+
+        t0 = time.monotonic()
+        findings: list[dict[str, Any]] = []
+        passed = False
+
+        try:
+            rc, out = _run(
+                ["uv", "run", "harbor", "simulate", "harbor.yaml", "--fixtures", "fixtures.yaml"],
+                work,
+                timeout_s=self._timeout_s,
+            )
+            passed = rc == 0
+            if not passed:
+                findings.append({"msg": out.strip()[:2000]})
+        except subprocess.TimeoutExpired:
+            findings.append({"msg": f"simulate timeout after {self._timeout_s}s"})
+        except FileNotFoundError:
+            findings.append({"msg": "harbor CLI not on PATH"})
+
+        result = VerifierResult(
+            kind="smoke",
+            passed=passed,
+            findings=findings,
+            duration_ms=int((time.monotonic() - t0) * 1000),
+        )
+        prior: list[VerifierResult] = list(getattr(state, "verifier_results", []))
+        return {"verifier_results": [*prior, result]}
