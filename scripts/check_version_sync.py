@@ -15,7 +15,6 @@ import sys
 import tomllib
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 INIT_PATH = REPO_ROOT / "src" / "harbor" / "__init__.py"
 PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"

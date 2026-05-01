@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase 3 VE2: 4-node graph (A -> parallel(B, C) -> D) with one parallel block.
+#
+# Topology:
+#
+#     node_a (echo)
+#         |
+#         v
+#     parallel block --> targets: [node_b, node_c], join: node_d, strategy: all
+#         |              |
+#         v              v
+#     node_b (echo)  node_c (echo)
+#         |              |
+#         +------+-------+
+#                |
+#                v
+#            node_d (halt)
+#
+# Expected Phase 3 VE2 event stream (per FR-13, design Section 3.7.1):
+#
+#   1. TransitionEvent(from=<start>, to=node_a)
+#   2. TransitionEvent(from=node_a, to=parallel)         # fan-out
+#   3. BranchStartedEvent(branch_id=branch-0, target=node_b, strategy=all)
+#   4. BranchStartedEvent(branch_id=branch-1, target=node_c, strategy=all)
+#   5. BranchCompletedEvent(branch_id=branch-0, result=...)   # order may vary
+#   6. BranchCompletedEvent(branch_id=branch-1, result=...)   # order may vary
+#   7. TransitionEvent(from=parallel, to=node_d)         # join after all-success
+#   8. ResultEvent(reason="Phase-3 sample graph reached node_d")
+#
+# Each Branch* event is mirrored by a `harbor.transition` fact emitted through
+# the Fathom adapter (parallel.py::_emit_transition, kind in {started,
+# completed, cancelled}). The all-strategy is the simplest: both branches
+# must succeed before the join target (node_d) is reached; any branch
+# failure raises ExceptionGroup and aborts the run.
+#
+# No DSPy, no MCP, no quorum/race -- those exercise other Phase 3 fixtures.
+ir_version: "1.0.0"
+id: "run:sample-graph-phase3"
+nodes:
+  - id: node_a
+    kind: echo
+  - id: node_b
+    kind: echo
+  - id: node_c
+    kind: echo
+  - id: node_d
+    kind: halt
+state_schema:
+  message: str
+parallel:
+  - targets: [node_b, node_c]
+    join: node_d
+    strategy: all
+rules:
+  - id: r-fanout
+    when: "(initial-fact)"
+    then:
+      - kind: parallel
+        targets: [node_b, node_c]
+        join: node_d
+        strategy: all
+  - id: r-join
+    when: "?n <- (node-id (id node_d))"
+    then:
+      - kind: halt
+        reason: "Phase-3 sample graph reached node_d"

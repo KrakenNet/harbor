@@ -316,13 +316,19 @@ def _make_v2_manifest() -> PluginManifest:  # pyright: ignore[reportUnusedFuncti
 
 
 # ---------------------------------------------------------------------------
-# Sanity: the loader knows about all four plugin groups
+# Sanity: the loader knows about all five plugin groups
 # ---------------------------------------------------------------------------
 
 
-def test_groups_constant_covers_all_four_plugin_kinds() -> None:
+def test_groups_constant_covers_all_five_plugin_kinds() -> None:
     """``GROUPS`` is the source of truth for stage-1 enumeration."""
-    assert set(GROUPS) == {"harbor.tools", "harbor.skills", "harbor.stores", "harbor.packs"}
+    assert set(GROUPS) == {
+        "harbor.tools",
+        "harbor.skills",
+        "harbor.stores",
+        "harbor.packs",
+        "harbor.triggers",
+    }
 
 
 # ---------------------------------------------------------------------------

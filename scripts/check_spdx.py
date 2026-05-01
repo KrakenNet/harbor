@@ -15,7 +15,6 @@ import argparse
 import sys
 from pathlib import Path
 
-
 SPDX_LINE = "# SPDX-License-Identifier: Apache-2.0"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = REPO_ROOT / "src"
@@ -57,9 +56,7 @@ def main() -> int:
             sys.stdout.write(f"fixed: {path.relative_to(REPO_ROOT)}\n")
         return 0
 
-    sys.stderr.write(
-        f"ERROR: {len(missing)} file(s) missing '{SPDX_LINE}' (FR-38):\n"
-    )
+    sys.stderr.write(f"ERROR: {len(missing)} file(s) missing '{SPDX_LINE}' (FR-38):\n")
     for path in missing:
         sys.stderr.write(f"  - {path.relative_to(REPO_ROOT)}\n")
     sys.stderr.write("Run with --fix to prepend the header automatically.\n")

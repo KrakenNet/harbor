@@ -1,5 +1,153 @@
 # Changelog
 
+## [Unreleased]
+
+The harbor-knowledge surface — Stores, Skills, retrieval, memory, and
+consolidation built on top of harbor-engine.
+
+### Added
+- Five Store Protocols (`harbor.stores`): `VectorStore`, `GraphStore`,
+  `DocStore`, `MemoryStore`, `FactStore` — each with `bootstrap`, `health`,
+  `migrate` lifecycle methods and capability strings — FR-1 through FR-5.
+- Three default embeddable backends: LanceDB (`VectorStore`), Kuzu
+  (`GraphStore`), and the SQLite trio (`DocStore`/`MemoryStore`/`FactStore`)
+  with single-writer `asyncio.Lock` per store path — FR-6, FR-7, FR-8.
+- Embedding-hash drift gate: 5-tuple `(model_id, revision, content_hash,
+  ndims, schema_v)` written to LanceDB table metadata at `bootstrap()`,
+  verified at every re-entry; `IncompatibleEmbeddingHashError` mirrors the
+  engine's `IncompatibleModelHashError` — FR-9.
+- `Skill` base class plus three reference skills (`rag`, `autoresearch`,
+  `wiki`) shipped in-tree, composed via the agent-as-subgraph pattern with
+  declared-output-channels-only contracts — FR-12, FR-13, FR-36.
+- `ReActSkill` with replay determinism: tool stubs matched by
+  `(node_name, step_id)` (not `(tool_name, args)`) so LLM-output drift cannot
+  desynchronize replay; `must_stub` LLM nodes guarantee byte-identical
+  re-execution — FR-19.
+- `RetrievalNode` (`harbor.nodes.retrieval`): parallel fan-out across stores
+  with `asyncio.TaskGroup` and Reciprocal Rank Fusion (RRF) merge; per-store
+  embedder is fixed (no cross-store re-embedding) — FR-22, FR-23.
+- `MemoryWriteNode`: 3-tuple episode write `(observation, thought, action)`
+  with provenance enforcement via the Fathom adapter — FR-25.
+- KG promotion (one-way): triples land in `GraphStore`, salient triples are
+  promoted to `FactStore` with provenance preserved; retraction is a separate
+  rule (asymmetric per Graphiti) — FR-27.
+- Mem0-style typed-delta consolidation (`MemoryDelta` Pydantic model with
+  required provenance fields) and Park 2023 salience scoring (recency +
+  relevance + importance), with `relevance` and `importance` zero in v1 —
+  FR-28, FR-31.
+- `FathomAdapter` provenance enforcement: every consolidated fact carries
+  `(source_episode_id, model_id, prompt_hash, ts)` — FR-28.
+- Plugin manifest factory and namespace conflict detection: skills and stores
+  registered via `pluggy` with loud-fail on namespace collision — FR-34,
+  FR-35.
+
+### harbor-serve-and-bosun
+
+The serve / scheduler / triggers / Bosun packs / Nautilus / HITL / artifacts
+surface — single-process FastAPI HTTP+WebSocket runtime built on top of
+harbor-engine + harbor-knowledge, plus the in-tree `harbor.bosun.*`
+reference packs and the Nautilus broker integration.
+
+#### Added
+- `harbor serve` HTTP+WebSocket API (FastAPI 0.115+, OpenAPI 3.1) —
+  `POST /v1/runs`, `GET /v1/runs/{id}`, `POST /v1/runs/{id}/{resume,cancel,pause,respond,counterfactual}`,
+  `GET /v1/graphs`, `GET /v1/registry/{tools|skills|stores}`,
+  `GET /v1/runs/{id}/artifacts`, `GET /v1/artifacts/{artifact_id}`, and
+  WebSocket `/v1/runs/{id}/stream` — FR-50 through FR-71.
+- Scheduler with cron-trigger DST-safe (cronsim) + idempotency dedup
+  (BLAKE3-keyed `dedup_key`) + per-graph `anyio.CapacityLimiter` honoring
+  IR `concurrency` — FR-43, FR-46, FR-47.
+- 3 trigger plugins (`manual`, `cron`, `webhook`) registered under the
+  `harbor.triggers` entry-point group; emit `TriggerEvent` → scheduler queue
+   — FR-40, FR-41, FR-42.
+- 4 in-tree Bosun reference packs (`harbor.bosun.budgets@1.0`, `audit@1.0`,
+  `safety_pii@1.0`, `retries@1.0`) signed with Ed25519; cleared deployments
+  verify signatures on load (Fathom attestation pattern) — FR-58 through
+  FR-65.
+- Nautilus integration via `harbor.nodes.nautilus.BrokerNode` +
+  `harbor.tools.nautilus.broker_request` + lifespan-singleton `Broker` —
+  FR-66, FR-67.
+- HITL primitives: `InterruptAction` IR variant,
+  `harbor.nodes.interrupt.InterruptNode`, `WaitingForInputEvent` +
+  `InterruptTimeoutEvent` event variants, `POST /v1/runs/{id}/respond` +
+  `GraphRun.respond()` async method + `harbor respond` CLI — FR-83 through
+  FR-87.
+- `harbor.artifacts` namespace: `ArtifactStore` Protocol +
+  `FilesystemArtifactStore` (BLAKE3 content-addressable, POSIX-local-only) +
+  `WriteArtifactNode` built-in + `ArtifactWrittenEvent` typed variant —
+  FR-90 through FR-95.
+- Deployment profiles (`oss-default` + `cleared`) with default-deny
+  capability enforcement; cleared profile requires TLS, audit, and
+  signed packs — FR-72 through FR-75.
+- STRIDE threat model (`docs/security/threat-model.md`) + sign-off rubric
+  + air-gap deployment guide (`docs/deployment/air-gap.md`).
+- 4 new CLI subcommands: `harbor inspect <run_id>` (timeline + state-at-step
+  + fact diffs), `harbor replay` (drives counterfactual API), `harbor respond`
+  (HITL response posting), `harbor serve` (production-ready uvicorn entry).
+
+#### Changed
+- Extended OpenAPI 3.1 spec coverage; mkdocs nav with 12 Serve topic pages.
+- Pack signing pubkey rotated; trust-store TOFU + static allow-list
+  (capability-tag pattern from Fathom).
+- `runtime/run.GraphRun` now supports mid-run cancel/pause/resume/respond
+  (engine TODO at `src/harbor/graph/run.py:329` resolved) — FR-76 to FR-82.
+
+## [v0.2.0] - 2026-04-29
+
+The harbor-engine release (v0.2.0). Implements the runtime, checkpoint, replay, audit,
+adapters, ML, and node subsystems on top of the harbor-foundation contracts,
+plus the foundation surface extensions required to support them (FR-33).
+
+### Foundation surface (engine extension)
+- `ToolSpec.side_effects` upgraded from `str` to a closed `SideEffect` enum
+  (`none | read | write | external`) — FR-33, FR-21.
+- `ToolSpec.replay_policy` field added (`must-stub | fail-loud`) governing how
+  side-effecting tools behave during replay — FR-33, FR-21, NFR-8.
+- `@tool` decorator (`harbor.registry.tool`) for declarative tool registration
+  with stable-ID and signature validation — FR-26, FR-33.
+- Stable-ID validators for `node_id`, `tool_id`, and `run_id` enforcing the
+  ASCII slug grammar required by graph hashing and resume — FR-33, FR-4.
+
+### Engine subsystems
+- `runtime/parallel` — `asyncio.TaskGroup` + `anyio` cancel scopes for
+  fan-out/fan-in nodes, with structured cancellation — FR-10, FR-13.
+- `runtime/bus` — bounded `anyio.MemoryObjectStream` event bus with
+  back-pressure and the `harbor.transition` / `harbor.evidence` event
+  vocabulary — FR-14, FR-15.
+- `runtime/merge` — Mirror field-level merge reducers with deterministic
+  last-write semantics and `race`/`any` rejection — FR-11, FR-12.
+- `runtime/tool_exec` — tool execution path enforcing replay-policy gating,
+  provenance assertion, and audit emission — FR-21, FR-24, NFR-8.
+- `checkpoint/sqlite` — `aiosqlite` checkpointer in WAL mode with the
+  `Checkpointer` Protocol — FR-16, FR-17.
+- `checkpoint/postgres` — `asyncpg` checkpointer, pgbouncer-safe (no
+  prepared-statement reuse across connections) — FR-18.
+- `checkpoint/clips_facts` — round-trip persistence of CLIPS provenance facts
+  alongside graph state — FR-16, NFR-4.
+- `adapters/dspy` — `DSPyNode` adapter with the FR-6 loud-fail guard for
+  unconfigured/missing DSPy modules — FR-5, FR-6.
+- `adapters/mcp` — Model Context Protocol bind path for tool registration
+  via `harbor.registry` — FR-25.
+- `replay` — cassettes, determinism contract, counterfactual runs (new
+  derived `graph_hash`, fresh `run_id`), history inspection, and compare —
+  FR-19, FR-20, FR-27, FR-28, FR-29, NFR-2.
+- `ml` — ONNX/sklearn loaders, tiny model registry, and `MLNode` with
+  explicit-provider session reuse — FR-30, FR-31, FR-32.
+- `nodes` — `DSPyNode`, `MLNode`, and `SubGraphNode` node primitives wired
+  into the runtime loop — FR-1, FR-5, FR-7, FR-30.
+- `audit` — JSONL audit-log sink with optional Ed25519 signing — FR-22.
+
+### CLI
+- `harbor run` validate + execute + JSONL log + `--inspect` — FR-8.
+- `harbor.simulate(ir, fixtures)` programmatic entrypoint — FR-9.
+- `harbor counterfactual` CLI for replay mutations — FR-29.
+
+### Cross-reference
+This release closes FR-1 through FR-33 (all 33 functional requirements from
+`specs/harbor-engine/requirements.md`), plus NFR-1 through NFR-10. The
+foundation extensions in FR-33 are a prerequisite for FR-21/FR-24/FR-26 and
+were landed first.
+
 ## [0.1.0] - 2026-04-26
 
 ### Added

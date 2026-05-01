@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# RagSkill POC subgraph fixture (FR-32, AC-7.1).
+#
+# Minimal IRDocument referenced by `RagSkill.subgraph` once Phase-2 wiring
+# loads it through `SubGraphNode`. POC scope: retrieve -> llm_stub ->
+# assemble. State schema mirrors `harbor.skills.refs.rag.RagState` field
+# names (FR-23 declared-output channels).
+ir_version: "1.0.0"
+id: "skill:rag.example"
+nodes:
+  - id: retrieve
+    kind: retrieval
+  - id: llm_stub
+    kind: echo
+  - id: assemble
+    kind: halt
+state_schema:
+  query: str
+  retrieved: list
+  context_window: str
+  answer: str
+  sources: list
+rules:
+  - id: r-retrieve-to-llm
+    when: "(initial-fact)"
+    then:
+      - kind: goto
+        target: llm_stub
+  - id: r-llm-to-assemble
+    when: "?n <- (node-id (id llm_stub))"
+    then:
+      - kind: goto
+        target: assemble
+  - id: r-halt
+    when: "?n <- (node-id (id assemble))"
+    then:
+      - kind: halt
+        reason: "RagSkill POC reached assemble"

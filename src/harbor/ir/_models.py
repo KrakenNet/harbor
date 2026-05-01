@@ -16,10 +16,13 @@ the source of truth in Phase 2.
 
 from __future__ import annotations
 
+from datetime import timedelta  # noqa: TC003 -- pydantic resolves at runtime
 from decimal import Decimal  # noqa: TC003 -- pydantic resolves at runtime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from harbor.tools.spec import ReplayPolicy, SideEffects
 
 __all__ = [
     "Action",
@@ -29,9 +32,11 @@ __all__ = [
     "HaltAction",
     "IRBase",
     "IRDocument",
+    "InterruptAction",
     "MigrateBlock",
     "NodeSpec",
     "PackMount",
+    "PackRequires",
     "ParallelAction",
     "ParallelBlock",
     "PluginManifest",
@@ -42,6 +47,7 @@ __all__ = [
     "SkillSpec",
     "SlotDef",
     "StoreRef",
+    "StoreSpec",
     "ToolRef",
     "ToolSpec",
 ]
@@ -109,8 +115,37 @@ class RetractAction(IRBase):
     pattern: str
 
 
+class InterruptAction(IRBase):
+    """Pause the run and request input (HITL primitive, FR-81, AC-14.1).
+
+    Surfaces a human-in-the-loop checkpoint: the engine emits a
+    ``WaitingForInputEvent`` carrying ``prompt`` + ``interrupt_payload``,
+    persists a checkpoint, and exits cleanly. Resume happens via
+    ``POST /runs/{id}/respond`` (or ``GraphRun.respond()``) gated on
+    ``requested_capability``. ``timeout`` bounds the wait; ``on_timeout``
+    selects ``"halt"`` (terminal) or ``"goto:<node_id>"`` (resume target).
+
+    Per design §17 Decision #1, dispatch happens on
+    ``Action.kind == "interrupt"`` BEFORE ``translate_actions`` -- this
+    variant is a control-flow primitive, not a routing decision.
+    """
+
+    kind: Literal["interrupt"] = "interrupt"
+    prompt: str
+    interrupt_payload: dict[str, Any] = Field(default_factory=dict[str, Any])
+    requested_capability: str | None = None
+    timeout: timedelta | None = None
+    on_timeout: Literal["halt"] | str = "halt"  # "halt" or "goto:<node_id>"
+
+
 Action = Annotated[
-    GotoAction | HaltAction | ParallelAction | RetryAction | AssertAction | RetractAction,
+    GotoAction
+    | HaltAction
+    | ParallelAction
+    | RetryAction
+    | AssertAction
+    | RetractAction
+    | InterruptAction,
     Field(discriminator="kind"),
 ]
 """Top-level discriminated union over the six Harbor verbs (FR-11).
@@ -156,17 +191,51 @@ class SkillRef(IRBase):
 
 
 class StoreRef(IRBase):
-    """Reference to a store binding (POC: name + provider id)."""
+    """Lightweight reference to a store binding (POC: name + provider id).
+
+    :class:`StoreSpec` is the canonical IR record for store registration
+    (FR-19/FR-20, design §3.16); ``StoreRef`` remains the trimmed shape used
+    inside :class:`IRDocument` graphs. The :meth:`to_capabilities` helper
+    yields the same ``[db.{name}:read, db.{name}:write]`` capability list
+    derived by ``StoreSpec`` so policy checks can resolve from either form.
+    """
 
     name: str
     provider: str
 
+    def to_capabilities(self) -> list[str]:
+        """Return derived capability strings for this store reference."""
+        return [f"db.{self.name}:read", f"db.{self.name}:write"]
+
+
+class PackRequires(IRBase):
+    """Pack version-compat requirements (FR-39, design §3.2, §7.4).
+
+    Optional sub-record on :class:`PackMount` declaring the harbor-facts
+    schema version + plugin api_version a Bosun rule pack was authored
+    against. Both fields default to ``None`` (no requirement); when set,
+    :func:`harbor.ir._versioning.check_pack_compat` enforces them at
+    pack-load time, raising :class:`harbor.errors.PackCompatError` on
+    mismatch (load-fail, never silent runtime drift).
+    """
+
+    harbor_facts_version: str | None = None
+    api_version: str | None = None
+
 
 class PackMount(IRBase):
-    """Bosun rule pack mount entry (POC: id + optional version)."""
+    """Bosun rule pack mount entry (POC: id + optional version + version-compat).
+
+    ``requires`` (added in task 2.22 for FR-39) carries a
+    :class:`PackRequires` block declaring the harbor-facts and plugin
+    api_versions the pack was authored against. ``None`` keeps full
+    backwards compatibility -- existing two-field mounts (``id`` +
+    ``version``) round-trip and structural-hash byte-identically.
+    """
 
     id: str
     version: str | None = None
+    requires: PackRequires | None = None
 
 
 class NodeSpec(IRBase):
@@ -251,7 +320,8 @@ class ToolSpec(IRBase):
     description: str
     input_schema: dict[str, object]
     output_schema: dict[str, object]
-    side_effects: bool
+    side_effects: SideEffects
+    replay_policy: ReplayPolicy = ReplayPolicy.must_stub
     permissions: list[str] = Field(default_factory=list[str])
     idempotency_key: str | None = None
     cost_estimate: Decimal | None = None
@@ -296,3 +366,33 @@ class PluginManifest(IRBase):
     namespaces: list[str]
     provides: list[Literal["tool", "skill", "store", "pack"]]
     order: Annotated[int, Field(default=5000, ge=0, le=10000)]
+
+
+class StoreSpec(IRBase):
+    """Canonical store registration record (design §3.16, FR-19/FR-20).
+
+    A ``StoreSpec`` describes a named store binding: its provider, the
+    portable-subset ``protocol`` (one of ``vector``, ``graph``, ``doc``,
+    ``memory``, ``fact``), an opaque ``config_schema`` (JSON Schema for the
+    provider's config payload), and the ``capabilities`` it grants.
+
+    Per FR-7 / AC-13.1, IR records may not carry Pydantic
+    ``computed_field`` / ``model_validator`` decorators (cross-language
+    portability constraint). Auto-derivation of the AC-8.1 default
+    ``[f"db.{name}:read", f"db.{name}:write"]`` is therefore exposed via
+    :meth:`effective_capabilities`; callers populate ``capabilities``
+    explicitly (e.g. ``StoreSpec(..., capabilities=spec.effective_capabilities())``)
+    when they want the canonical default baked into the serialized record.
+    """
+
+    name: str
+    provider: str
+    protocol: Literal["vector", "graph", "doc", "memory", "fact"]
+    config_schema: dict[str, object]
+    capabilities: list[str] = Field(default_factory=list[str])
+
+    def effective_capabilities(self) -> list[str]:
+        """Return ``capabilities`` if non-empty, else the AC-8.1 default pair."""
+        if self.capabilities:
+            return list(self.capabilities)
+        return [f"db.{self.name}:read", f"db.{self.name}:write"]

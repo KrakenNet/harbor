@@ -24,11 +24,13 @@ the underlying Fathom hot-reload API (``engine.reload_rules``, see
 
 from __future__ import annotations
 
+import json
 import re
 from typing import TYPE_CHECKING, Any, cast
 
 from harbor.errors import ValidationError
 from harbor.ir._mirror import mirrored_fields
+from harbor.ir._models import InterruptAction
 
 from ._action import Action, extract_actions
 from ._provenance import ProvenanceBundle, _sanitize_provenance_slot
@@ -122,11 +124,58 @@ class FathomAdapter:
         Calls ``engine.evaluate()`` (returns :class:`fathom.EvaluationResult`,
         whose decision/trace data are out of scope for FR-4), then queries
         ``harbor_action`` facts and feeds the slot dicts to
-        :func:`extract_actions`.
+        :meth:`extract_actions`.
         """
         self.engine.evaluate()
         facts = self.engine.query("harbor_action", None)
-        return extract_actions(list(facts))
+        return self.extract_actions(list(facts))
+
+    def extract_actions(self, facts: list[dict[str, Any]]) -> list[Action]:
+        """Translate ``harbor_action`` fact slot dicts into typed :data:`Action` instances.
+
+        Wraps the module-level :func:`extract_actions` to add the
+        ``kind="interrupt"`` branch (AC-14.1, design §4.4): when CLIPS emits a
+        ``harbor_action`` fact with ``kind="interrupt"``, deserialize the
+        ``prompt``, ``interrupt_payload``, ``requested_capability``, ``timeout``,
+        and ``on_timeout`` slots and emit an :class:`InterruptAction`. The
+        ``interrupt_payload`` slot is JSON-decoded if delivered as a string
+        (CLIPS lacks a native dict type) or passed through if already a dict.
+        Missing optional fields default to ``None``; the required ``prompt``
+        propagates a Pydantic validation error if absent. All other ``kind``
+        values are dispatched per-fact through the module-level
+        :func:`extract_actions`, preserving original fact ordering.
+        """
+        actions: list[Action] = []
+        for fact in facts:
+            if fact.get("kind") == "interrupt":
+                actions.append(self._build_interrupt_action(fact))
+            else:
+                actions.extend(extract_actions([fact]))
+        return actions
+
+    @staticmethod
+    def _build_interrupt_action(fact: dict[str, Any]) -> InterruptAction:
+        """Construct an :class:`InterruptAction` from a CLIPS slot dict.
+
+        Required: ``prompt`` (Pydantic raises if missing). Optional defaults to
+        ``None``: ``requested_capability``, ``timeout``. ``interrupt_payload``
+        defaults to ``{}`` and accepts JSON-string or dict shapes.
+        ``on_timeout`` defaults to ``"halt"``.
+        """
+        payload_raw: Any = fact.get("interrupt_payload", {})
+        payload: dict[str, Any]
+        if isinstance(payload_raw, str):
+            payload = json.loads(payload_raw) if payload_raw else {}
+        else:
+            payload = payload_raw
+        kwargs: dict[str, Any] = {
+            "prompt": fact.get("prompt"),
+            "interrupt_payload": payload,
+            "requested_capability": fact.get("requested_capability"),
+            "timeout": fact.get("timeout"),
+            "on_timeout": fact.get("on_timeout", "halt"),
+        }
+        return InterruptAction(**kwargs)
 
     def mirror_state(
         self, state: BaseModel, annotations: dict[str, Any]

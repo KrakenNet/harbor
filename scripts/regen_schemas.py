@@ -25,12 +25,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
-
-from pydantic import BaseModel
+from typing import TYPE_CHECKING, Any
 
 from harbor.ir import IRDocument, PluginManifest, ToolSpec
 
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 SCHEMAS_DIR = Path(__file__).resolve().parents[1] / "src" / "harbor" / "schemas"
 JSON_SCHEMA_DRAFT = "https://json-schema.org/draft/2020-12/schema"

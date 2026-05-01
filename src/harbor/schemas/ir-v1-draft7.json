@@ -68,6 +68,70 @@
       "title": "HaltAction",
       "type": "object"
     },
+    "InterruptAction": {
+      "additionalProperties": false,
+      "description": "Pause the run and request input (HITL primitive, FR-81, AC-14.1).\n\nSurfaces a human-in-the-loop checkpoint: the engine emits a\n``WaitingForInputEvent`` carrying ``prompt`` + ``interrupt_payload``,\npersists a checkpoint, and exits cleanly. Resume happens via\n``POST /runs/{id}/respond`` (or ``GraphRun.respond()``) gated on\n``requested_capability``. ``timeout`` bounds the wait; ``on_timeout``\nselects ``\"halt\"`` (terminal) or ``\"goto:<node_id>\"`` (resume target).\n\nPer design \u00a717 Decision #1, dispatch happens on\n``Action.kind == \"interrupt\"`` BEFORE ``translate_actions`` -- this\nvariant is a control-flow primitive, not a routing decision.",
+      "properties": {
+        "kind": {
+          "const": "interrupt",
+          "default": "interrupt",
+          "title": "Kind",
+          "type": "string"
+        },
+        "prompt": {
+          "title": "Prompt",
+          "type": "string"
+        },
+        "interrupt_payload": {
+          "additionalProperties": true,
+          "title": "Interrupt Payload",
+          "type": "object"
+        },
+        "requested_capability": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Requested Capability"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "format": "duration",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        },
+        "on_timeout": {
+          "anyOf": [
+            {
+              "const": "halt",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": "halt",
+          "title": "On Timeout"
+        }
+      },
+      "required": [
+        "prompt"
+      ],
+      "title": "InterruptAction",
+      "type": "object"
+    },
     "MigrateBlock": {
       "additionalProperties": false,
       "description": "Migration descriptor for graph-hash mismatch on resume (POC: from/to ids).",
@@ -110,7 +174,7 @@
     },
     "PackMount": {
       "additionalProperties": false,
-      "description": "Bosun rule pack mount entry (POC: id + optional version).",
+      "description": "Bosun rule pack mount entry (POC: id + optional version + version-compat).\n\n``requires`` (added in task 2.22 for FR-39) carries a\n:class:`PackRequires` block declaring the harbor-facts and plugin\napi_versions the pack was authored against. ``None`` keeps full\nbackwards compatibility -- existing two-field mounts (``id`` +\n``version``) round-trip and structural-hash byte-identically.",
       "properties": {
         "id": {
           "title": "Id",
@@ -127,12 +191,55 @@
           ],
           "default": null,
           "title": "Version"
+        },
+        "requires": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PackRequires"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
         "id"
       ],
       "title": "PackMount",
+      "type": "object"
+    },
+    "PackRequires": {
+      "additionalProperties": false,
+      "description": "Pack version-compat requirements (FR-39, design \u00a73.2, \u00a77.4).\n\nOptional sub-record on :class:`PackMount` declaring the harbor-facts\nschema version + plugin api_version a Bosun rule pack was authored\nagainst. Both fields default to ``None`` (no requirement); when set,\n:func:`harbor.ir._versioning.check_pack_compat` enforces them at\npack-load time, raising :class:`harbor.errors.PackCompatError` on\nmismatch (load-fail, never silent runtime drift).",
+      "properties": {
+        "harbor_facts_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Harbor Facts Version"
+        },
+        "api_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Api Version"
+        }
+      },
+      "title": "PackRequires",
       "type": "object"
     },
     "ParallelAction": {
@@ -264,6 +371,7 @@
                 "assert": "#/definitions/AssertAction",
                 "goto": "#/definitions/GotoAction",
                 "halt": "#/definitions/HaltAction",
+                "interrupt": "#/definitions/InterruptAction",
                 "parallel": "#/definitions/ParallelAction",
                 "retract": "#/definitions/RetractAction",
                 "retry": "#/definitions/RetryAction"
@@ -288,6 +396,9 @@
               },
               {
                 "$ref": "#/definitions/RetractAction"
+              },
+              {
+                "$ref": "#/definitions/InterruptAction"
               }
             ]
           },
@@ -330,7 +441,7 @@
     },
     "StoreRef": {
       "additionalProperties": false,
-      "description": "Reference to a store binding (POC: name + provider id).",
+      "description": "Lightweight reference to a store binding (POC: name + provider id).\n\n:class:`StoreSpec` is the canonical IR record for store registration\n(FR-19/FR-20, design \u00a73.16); ``StoreRef`` remains the trimmed shape used\ninside :class:`IRDocument` graphs. The :meth:`to_capabilities` helper\nyields the same ``[db.{name}:read, db.{name}:write]`` capability list\nderived by ``StoreSpec`` so policy checks can resolve from either form.",
       "properties": {
         "name": {
           "title": "Name",

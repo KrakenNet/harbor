@@ -23,6 +23,31 @@ from harbor.fathom import FathomAdapter
 FIXTURES_DIR: Path = Path(__file__).parent / "fixtures"
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Register ``--runslow`` so ``@pytest.mark.slow`` tests opt in.
+
+    Slow tests (e.g. perf calibration suites under ``tests/perf/``) are
+    skipped by default to keep ``pytest -q`` snappy. Pass ``--runslow`` to
+    include them: ``pytest -q tests/perf --runslow``.
+    """
+    parser.addoption(
+        "--runslow",
+        action="store_true",
+        default=False,
+        help="run tests marked @pytest.mark.slow (perf calibration, etc.)",
+    )
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Skip ``@pytest.mark.slow`` items unless ``--runslow`` was passed."""
+    if config.getoption("--runslow"):
+        return
+    skip_slow = pytest.mark.skip(reason="need --runslow option to run")
+    for item in items:
+        if "slow" in item.keywords:
+            item.add_marker(skip_slow)
+
+
 def _harbor_action_template_definition() -> TemplateDefinition:
     """Mirror of ``HARBOR_ACTION_DEFTEMPLATE`` for the engine's registry.
 

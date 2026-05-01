@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# FR-32 reference IR: training-as-subgraph (design §3.9.4 recipe).
+#
+# Demonstrates the **engine-native pattern** for producing and registering an
+# ML model artifact without introducing a dedicated "training node" type:
+#
+#   1. ``train_subgraph`` -- a sub-graph that fits a sklearn classifier on
+#      synthetic toy data (delegated to a `@tool` callable -- ``ml.fit``).
+#      Side-effect classification: ``write`` (touches the local filesystem
+#      via the registered ``file://`` artifact). Replay policy: ``must-stub``
+#      so a replay of the parent graph never re-trains.
+#   2. ``register_node`` -- writes the ``(model_id, version, runtime,
+#      file_uri, content_hash)`` tuple into the SQLite ``ModelRegistry``
+#      via the ``ml.register`` tool. Side-effect: ``write``; replay policy
+#      ``must-stub`` (idempotent insert is fine, but determinism wants a
+#      recorded outcome).
+#   3. ``infer_node`` -- a regular :class:`harbor.nodes.ml.MLNode` over the
+#      registered artifact. Inference is declared ``side_effects=none`` so
+#      replay re-executes natively unless the registered ``content_hash``
+#      changed (registry mismatch -> :class:`IncompatibleModelHashError`,
+#      which the FR-21 ``must-stub`` envelope routes through the recorded
+#      cassette).
+#
+# This fixture is the source-of-truth IR shape; the matching integration
+# test (`test_training_subgraph_example.py`) executes the logical steps in
+# Python because the YAML->graph-runtime path for ML nodes lands later.
+ir_version: "1.0.0"
+id: "run:training-subgraph"
+
+state_schema:
+  model_id: str
+  version: str
+  artifact_path: str
+  content_hash: str
+  x: list
+  y: list
+
+nodes:
+  - id: train_subgraph
+    kind: subgraph
+    spec:
+      tool: ml.fit            # @tool side_effects=write, replay_policy=must-stub
+      inputs:
+        n_samples: 64
+        n_features: 4
+        random_state: 0
+      outputs:
+        artifact_path: artifact_path
+        content_hash: content_hash
+
+  - id: register_node
+    kind: tool
+    spec:
+      tool: ml.register       # @tool side_effects=write, replay_policy=must-stub
+      inputs:
+        model_id: "$state.model_id"
+        version: "$state.version"
+        runtime: sklearn
+        file_uri: "$state.artifact_path"
+        content_hash: "$state.content_hash"
+
+  - id: infer_node
+    kind: ml                  # MLNode -- side_effects=none, replay re-executes
+    spec:
+      model_id: "$state.model_id"
+      version: "$state.version"
+      runtime: sklearn
+      input_field: x
+      output_field: y
+      allow_unsafe_pickle: true
+
+  - id: halt_node
+    kind: halt
+
+rules:
+  - id: r-train-then-register
+    when: "(initial-fact)"
+    then:
+      - kind: goto
+        target: register_node
+
+  - id: r-register-then-infer
+    when: "?n <- (node-id (id register_node))"
+    then:
+      - kind: goto
+        target: infer_node
+
+  - id: r-infer-then-halt
+    when: "?n <- (node-id (id infer_node))"
+    then:
+      - kind: halt
+        reason: "FR-32 reference: training-as-subgraph completed inference"

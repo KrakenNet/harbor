@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# WikiSkill POC subgraph fixture (FR-34, AC-7.3).
+#
+# Minimal IRDocument referenced by `WikiSkill.subgraph` once Phase-2
+# wiring loads it through `SubGraphNode`. POC scope: autoresearch
+# (subgraph) -> format (tool) -> halt. State schema mirrors
+# `harbor.skills.refs.wiki.WikiState` field names (FR-23
+# declared-output channels).
+ir_version: "1.0.0"
+id: "skill:wiki.example"
+nodes:
+  - id: autoresearch
+    kind: subgraph
+  - id: format
+    kind: tool
+  - id: halt
+    kind: halt
+state_schema:
+  topic: str
+  wiki_entry: dict
+  markdown: str
+rules:
+  - id: r-autoresearch-to-format
+    when: "(initial-fact)"
+    then:
+      - kind: goto
+        target: format
+  - id: r-format-to-halt
+    when: "?n <- (node-id (id format))"
+    then:
+      - kind: goto
+        target: halt
+  - id: r-halt
+    when: "?n <- (node-id (id halt))"
+    then:
+      - kind: halt
+        reason: "WikiSkill POC reached halt"

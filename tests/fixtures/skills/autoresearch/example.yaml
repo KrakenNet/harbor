@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# AutoresearchSkill POC subgraph fixture (FR-33, AC-7.2).
+#
+# Minimal IRDocument referenced by `AutoresearchSkill.subgraph` once Phase-2
+# wiring loads it through `SubGraphNode`. POC scope: gather (stub web fetch
+# + RagSkill vector retrieval) -> assemble. State schema mirrors
+# `harbor.skills.refs.autoresearch.AutoresearchState` field names
+# (FR-23 declared-output channels).
+ir_version: "1.0.0"
+id: "skill:autoresearch.example"
+nodes:
+  - id: gather
+    kind: tool
+  - id: rag
+    kind: subgraph
+  - id: assemble
+    kind: halt
+state_schema:
+  topic: str
+  claims: list
+  sources: dict
+  wiki_entry: dict
+rules:
+  - id: r-gather-to-rag
+    when: "(initial-fact)"
+    then:
+      - kind: goto
+        target: rag
+  - id: r-rag-to-assemble
+    when: "?n <- (node-id (id rag))"
+    then:
+      - kind: goto
+        target: assemble
+  - id: r-halt
+    when: "?n <- (node-id (id assemble))"
+    then:
+      - kind: halt
+        reason: "AutoresearchSkill POC reached assemble"

@@ -51,8 +51,70 @@ _ALLOWED_RAISE_NAMES: frozenset[str] = frozenset(
         "ValidationError",
         "PluginLoadError",
         "HarborRuntimeError",
+        "AdapterFallbackError",
+        "CapabilityError",
         "CheckpointError",
+        "IRValidationError",
         "ReplayError",
+        "IncompatibleSklearnVersion",
+        "IncompatibleModelHashError",
+        "MLNodeError",
+        "SimulationError",
+        # Harbor-knowledge store-error hierarchy (design §4.5).
+        "StoreError",
+        "IncompatibleEmbeddingHashError",
+        "EmbeddingModelHashMismatch",
+        "IncompatibleSchemaError",
+        "IncompatibleMigrationError",
+        "MigrationNotSupported",
+        "UnportableCypherError",
+        "NamespaceConflictError",
+        "MemoryScopeError",
+        "ConsolidationRuleError",
+        "FactConflictError",
+        # Harbor-artifacts hierarchy (harbor-serve-and-bosun §3.3).
+        # ArtifactStoreError is the HarborError-rooted base for the artifact
+        # subsystem; ArtifactNotFound is its 404-shaped subclass surfaced by
+        # GET /artifacts/{id} and the FilesystemArtifactStore.get/delete paths.
+        "ArtifactStoreError",
+        "ArtifactNotFound",
+        # Harbor-serve Bosun pack version-compat (task 2.23, design §3.2 / §7.4).
+        # Raised by harbor.ir._versioning.check_pack_compat at pack-load time
+        # when PackMount.requires (harbor_facts_version / api_version) does
+        # not match the host versions. HarborError-rooted (load-fail surface
+        # is operator-facing config, not engine runtime).
+        "PackCompatError",
+        # Harbor-serve cleared-profile startup gate (task 2.37, design §11.1 / §15).
+        # Raised by harbor.cli.serve at boot when --allow-pack-mutation or
+        # --allow-side-effects is supplied under --profile cleared. HarborError-rooted
+        # (config-time operator-facing failure, not engine runtime).
+        "ProfileViolationError",
+        # Harbor-serve Bosun pack-signing trust-boundary failure (tasks 2.26-2.27,
+        # design §7.3 / §7.5 / §17 Decision #4). Raised by
+        # harbor.bosun.signing.verify_pack on any signature, algorithm-whitelist,
+        # tree-hash, TOFU-fingerprint, x5c-header-rejection, or static-allow-list
+        # miss under the cleared profile (load-fail). HarborError-rooted (load-time
+        # config surface, not engine runtime — same shape as PackCompatError).
+        "PackSignatureError",
+        # Harbor-serve broadcaster overflow signal (task 2.21, design §5.6).
+        # Raised by ``EventBroadcaster`` when a per-subscriber bounded
+        # stream cannot accept a new event non-blocking; caught by the WS
+        # handler and translated to ``close(1011, "slow consumer")``.
+        # HarborRuntimeError-rooted so a single ``except HarborRuntimeError``
+        # catches it alongside other engine runtime failures.
+        "BroadcasterOverflow",
+        # InterruptNode internal control-flow signal (harbor-serve-and-bosun
+        # §3.6, design Decision #1). Caught by the loop's run-step boundary
+        # to dispatch InterruptAction without polluting RoutingDecision.
+        # Underscore-prefixed = module-private; not part of the public surface.
+        "_HitInterrupt",
+        # FastAPI HTTP fault surface for the harbor.serve API + webhook
+        # trigger (harbor-serve-and-bosun §5). HTTPException is the
+        # framework-mandated way to return non-2xx responses; wrapping each
+        # site in HarborRuntimeError + a translation middleware would re-raise
+        # this same class anyway, so we accept it on its own as a known
+        # boundary exception (FR-24 carve-out for HTTP-framework integration).
+        "HTTPException",
         # Stdlib — type/contract violations (caller bug, not a Harbor failure).
         "TypeError",
         "ValueError",

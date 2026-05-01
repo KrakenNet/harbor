@@ -49,6 +49,99 @@ jobs:
           files: coverage.xml
           fail_ci_if_error: false
 
+  engine-test:
+    # Engine-specific suite filtered by `engine` marker. Provides a Postgres +
+    # pgbouncer service stack for FR-18 integration tests (asyncpg through
+    # pgbouncer transaction pooling). Single Linux/py3.13 job is enough for
+    # the service-bound subset; cross-platform coverage stays in `test`.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: harbor
+          POSTGRES_PASSWORD: harbor
+          POSTGRES_DB: harbor
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U harbor"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      pgbouncer:
+        image: bitnami/pgbouncer:1.23.1
+        env:
+          POSTGRESQL_HOST: postgres
+          POSTGRESQL_PORT: 5432
+          POSTGRESQL_USERNAME: harbor
+          POSTGRESQL_PASSWORD: harbor
+          POSTGRESQL_DATABASE: harbor
+          PGBOUNCER_DATABASE: harbor
+          PGBOUNCER_POOL_MODE: transaction
+          PGBOUNCER_AUTH_TYPE: scram-sha-256
+        ports:
+          - 6432:6432
+    env:
+      HARBOR_TEST_PG_DSN: postgres://harbor:harbor@localhost:5432/harbor
+      HARBOR_TEST_PGBOUNCER_DSN: postgres://harbor:harbor@localhost:6432/harbor
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.13"
+      - run: uv sync --group dev
+      - run: uv run pytest -m "engine and not slow" -q
+
+  knowledge-test:
+    # Knowledge-stack suite filtered by `knowledge` marker (FR-12, NFR-4).
+    # Provides a Postgres service for any postgres-using knowledge tests
+    # (LanceDB + Kuzu run on local filesystem; postgres is here for parity
+    # with engine-test in case knowledge skills exercise a shared Postgres
+    # backend).
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: harbor
+          POSTGRES_PASSWORD: harbor
+          POSTGRES_DB: harbor
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U harbor"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      HARBOR_TEST_PG_DSN: postgres://harbor:harbor@localhost:5432/harbor
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.13"
+      - run: uv sync --group dev --extra stores --extra skills-rag --extra ml
+      - run: uv run pytest tests/ -m "knowledge" --cov=harbor.stores --cov=harbor.skills -q
+
+  cypher-subset:
+    # Two-engine Cypher portable-subset CI gate (FR-12, AC-9.3, NFR-4).
+    # Runs the same allow-list query corpus against in-memory Kuzu AND a
+    # Neo4j 5 testcontainer, asserting byte-identical row sets. Any
+    # divergence -- syntax or semantics -- aborts the gate (loud-fail).
+    # ``--runslow`` is required because the testcontainer spin-up is slow.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.13"
+      - run: uv sync --group dev --extra stores
+      - run: uv run pytest -q tests/integration/test_cypher_subset.py --runslow --no-cov
+
   schemas:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -60,6 +153,41 @@ jobs:
       - run: uv sync --group dev
       - run: uv run python scripts/build_draft7.py
       - run: git diff --exit-code src/harbor/schemas/ir-v1-draft7.json
+
+  serve-test:
+    # harbor-serve + bosun subsystem gate (FR-71, NFR-13, NFR-16). Runs the
+    # `serve` marker suite, enforces 0-errors `pyright --strict` over the
+    # serve / bosun / triggers / artifacts / nautilus / interrupt source
+    # surface, checks `docs/reference/openapi.json` for drift, and smoke-runs
+    # the lineage-audit script. Project `requires-python` is `>=3.13,<3.14`,
+    # so the matrix is single-version 3.13. Linux-only on every PR keeps
+    # CI cost bounded; macOS/Windows coverage flows in via the existing
+    # `test` matrix above. `uv sync --all-extras --all-groups` is required
+    # because `harbor.stores._common` pulls in `pyarrow` (extras) and the
+    # serve test surface needs the full dev/docs groups.
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.13"
+      - run: uv sync --all-extras --all-groups
+      - run: uv run pytest -q -m "serve" --tb=short
+      - run: |
+          uv run pyright \
+            src/harbor/serve \
+            src/harbor/bosun \
+            src/harbor/nodes/nautilus \
+            src/harbor/nodes/interrupt \
+            src/harbor/nodes/artifacts \
+            src/harbor/tools/nautilus \
+            src/harbor/artifacts \
+            src/harbor/triggers \
+            --strict
+      - run: uv run python scripts/regen_openapi.py
+      - run: git diff --exit-code docs/reference/openapi.json
+      - run: uv run python scripts/lineage_audit.py --help
 
   dco:
     # Only run on PRs; reject if any commit lacks Signed-off-by

@@ -30,6 +30,7 @@ from pydantic import ValidationError as PydanticValidationError
 
 from harbor.errors import ValidationError
 
+from ._ids import validate_node_id, validate_pack_id, validate_rule_id
 from ._models import IRDocument
 from ._versioning import check_version
 
@@ -114,9 +115,55 @@ def validate(ir: dict[str, Any] | str) -> list[ValidationError]:
         parsed = ir
 
     try:
-        IRDocument.model_validate(parsed)
+        doc = IRDocument.model_validate(parsed)
     except PydanticValidationError as exc:
         return [_to_harbor_error(d) for d in exc.errors(include_url=True, include_input=True)]
+
+    # Stable-ID slug enforcement (FR-33) — done outside the IRDocument
+    # Pydantic class because FR-7 / AC-13.1 ban ``model_validator`` decorators
+    # in ``_models.py`` to keep the JSON Schema round-trip pure.
+    id_errors: list[ValidationError] = []
+    for idx, node in enumerate(doc.nodes):
+        try:
+            validate_node_id(node.id)
+        except ValueError as exc:
+            id_errors.append(
+                ValidationError(
+                    "IR validation failed",
+                    path=f"/nodes/{idx}/id",
+                    expected="slug ([a-z0-9][a-z0-9_\\-.]{0,127})",
+                    actual=node.id,
+                    hint=str(exc),
+                ),
+            )
+    for idx, rule in enumerate(doc.rules):
+        try:
+            validate_rule_id(rule.id)
+        except ValueError as exc:
+            id_errors.append(
+                ValidationError(
+                    "IR validation failed",
+                    path=f"/rules/{idx}/id",
+                    expected="slug ([a-z0-9][a-z0-9_\\-.]{0,127})",
+                    actual=rule.id,
+                    hint=str(exc),
+                ),
+            )
+    for idx, pack in enumerate(doc.governance):
+        try:
+            validate_pack_id(pack.id)
+        except ValueError as exc:
+            id_errors.append(
+                ValidationError(
+                    "IR validation failed",
+                    path=f"/governance/{idx}/id",
+                    expected="slug ([a-z0-9][a-z0-9_\\-.]{0,127})",
+                    actual=pack.id,
+                    hint=str(exc),
+                ),
+            )
+    if id_errors:
+        return id_errors
 
     if isinstance(parsed, dict):
         return check_version(cast("dict[str, Any]", parsed))

@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Empty vcrpy cassette paired with ``sample-graph-phase4.yaml``.
+#
+# The Phase 4 VE2 fixture binds a fully stubbed DSPy module to ``node_b``
+# (see ``tests/integration/test_dspy_adapter_basic.py`` for the stub
+# pattern), so no HTTP traffic should leave the process. This cassette
+# therefore records zero interactions; under ``record_mode="none"``
+# (CI default per FR-28 / design §3.8.5) it loads cleanly and any
+# accidental real LLM call raises ``CannotOverwriteExistingCassetteException``.
+#
+# vcrpy's serializer (`yamlserializer`) writes/reads exactly the two
+# top-level keys below: ``version`` (cassette format) and ``interactions``
+# (list of recorded request/response pairs). An empty list is a valid
+# cassette and is what we ship intentionally.
+version: 1
+interactions: []

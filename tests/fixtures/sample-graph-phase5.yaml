@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase 5 VE2: 6-node graph for the counterfactual replay end-to-end smoke
+# (task 5.7, FR-27, US-4).
+#
+# Topology (linear -- the CLI ``harbor run`` driver in ``src/harbor/cli/run.py``
+# walks the static IR edge by default; rule-driven parallel/quorum requires a
+# Fathom adapter the CLI does not currently wire):
+#
+#     node_a (echo)            -- seed input into state
+#         |
+#         v
+#     node_b (dspy)            -- stub DSPy module; no live LLM, FR-14 tool_call/tool_result
+#         |
+#         v
+#     node_c (echo)            -- carry projected DSPy output
+#         |
+#         v
+#     node_d (echo)            -- second carrier (six-node target)
+#         |
+#         v
+#     node_e (echo)            -- third carrier
+#         |
+#         v
+#     node_f (halt)
+#
+# Per task-5.7 scope-reduction (see specs/.progress.md task-5.7 entry):
+# the original spec called for parallel + DSPy + ML node; CLI ``run`` wiring
+# supports ``echo``/``halt``/``dspy`` only, and ``parallel`` blocks fire via
+# Fathom rules the CLI does not currently bind. The 6-node count is preserved
+# so the counterfactual diff machinery walks the same number of checkpoints
+# the original spec contemplated.
+#
+# Expected JSONL event stream (FR-13 + design §3.7):
+#
+#   1. TransitionEvent(from=<start>, to=node_a)
+#   2. TransitionEvent(from=node_a,  to=node_b)
+#   3. ToolCallEvent(node=node_b, kind="dspy", module="harbor.tests.dspy_stub")
+#   4. ToolResultEvent(node=node_b, ok=true, projected_outputs={"answer": ...})
+#   5. TransitionEvent(from=node_b,  to=node_c)
+#   6. TransitionEvent(from=node_c,  to=node_d)
+#   7. TransitionEvent(from=node_d,  to=node_e)
+#   8. TransitionEvent(from=node_e,  to=node_f)
+#   9. ResultEvent(reason="Phase-5 sample graph reached node_f")
+#
+# The paired vcrpy cassette (``tests/fixtures/dspy-cassette.yaml``) records
+# zero HTTP interactions; ``record_mode="none"`` in CI loud-fails any
+# accidental live LLM call.
+ir_version: "1.0.0"
+id: "run:sample-graph-phase5"
+nodes:
+  - id: node_a
+    kind: echo
+  - id: node_b
+    kind: dspy
+  - id: node_c
+    kind: echo
+  - id: node_d
+    kind: echo
+  - id: node_e
+    kind: echo
+  - id: node_f
+    kind: halt
+state_schema:
+  message: str
+  answer: str
+rules:
+  - id: r-advance-to-dspy
+    when: "(initial-fact)"
+    then:
+      - kind: goto
+        target: node_b
+  - id: r-advance-to-c
+    when: "?n <- (node-id (id node_b))"
+    then:
+      - kind: goto
+        target: node_c
+  - id: r-advance-to-d
+    when: "?n <- (node-id (id node_c))"
+    then:
+      - kind: goto
+        target: node_d
+  - id: r-advance-to-e
+    when: "?n <- (node-id (id node_d))"
+    then:
+      - kind: goto
+        target: node_e
+  - id: r-advance-to-f
+    when: "?n <- (node-id (id node_e))"
+    then:
+      - kind: goto
+        target: node_f
+  - id: r-halt
+    when: "?n <- (node-id (id node_f))"
+    then:
+      - kind: halt
+        reason: "Phase-5 sample graph reached node_f"

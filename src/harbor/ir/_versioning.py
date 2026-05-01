@@ -21,11 +21,19 @@ warning, since meaning across majors is undefined.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from harbor.errors import ValidationError
+from harbor.errors import PackCompatError, ValidationError
 
-__all__ = ["HARBOR_IR_VERSION", "check_version", "parse_version"]
+if TYPE_CHECKING:
+    from ._models import PackMount
+
+__all__ = [
+    "HARBOR_IR_VERSION",
+    "check_pack_compat",
+    "check_version",
+    "parse_version",
+]
 
 
 HARBOR_IR_VERSION = "1.0.0"
@@ -79,3 +87,66 @@ def check_version(ir: dict[str, Any]) -> list[ValidationError]:
             ),
         )
     ]
+
+
+def check_pack_compat(
+    pack_mount: PackMount,
+    harbor_facts_version: str,
+    api_version: str,
+) -> None:
+    """Verify a pack mount's ``requires`` matches the host versions (FR-39).
+
+    Per harbor-serve-and-bosun design §3.2 / §7.4 / AC-3.2: a Bosun rule
+    pack mount may declare ``requires.harbor_facts_version`` and/or
+    ``requires.api_version`` -- the harbor-facts schema version + plugin
+    api_version it was authored against. This function is the load-time
+    gate (NOT runtime): mismatches surface :class:`PackCompatError` so
+    silent runtime drift is impossible (FR-6 force-loud).
+
+    Comparison is **pinned-string equality** (POC slice). Semver-aware
+    matching is a Phase-3+ refinement; for v1 pack authors pin the
+    exact target version. ``None`` on either side of a field means
+    "no requirement on this field" -- the unset slot is skipped.
+
+    Args:
+        pack_mount: The :class:`harbor.ir.PackMount` whose ``requires``
+            block (if any) is being checked.
+        harbor_facts_version: The harbor-facts schema version the host
+            consumes (e.g. ``"1.0"``).
+        api_version: The plugin api_version the host exposes (e.g. ``"1"``).
+
+    Raises:
+        PackCompatError: when ``pack_mount.requires`` is set and any
+            populated field disagrees with the corresponding host
+            version. Context fields: ``pack_id``, ``field``,
+            ``required``, ``actual``.
+    """
+    requires = pack_mount.requires
+    if requires is None:
+        # Legacy two-field mount (or explicit "no requirement"). Accept
+        # for back-compat -- existing PackMount(id=..., version=...)
+        # callers must keep loading without surprise.
+        return
+
+    if (
+        requires.harbor_facts_version is not None
+        and requires.harbor_facts_version != harbor_facts_version
+    ):
+        raise PackCompatError(
+            f"pack {pack_mount.id!r} requires harbor_facts_version "
+            f"{requires.harbor_facts_version!r}, host has {harbor_facts_version!r}",
+            pack_id=pack_mount.id,
+            field="harbor_facts_version",
+            required=requires.harbor_facts_version,
+            actual=harbor_facts_version,
+        )
+
+    if requires.api_version is not None and requires.api_version != api_version:
+        raise PackCompatError(
+            f"pack {pack_mount.id!r} requires api_version "
+            f"{requires.api_version!r}, host has {api_version!r}",
+            pack_id=pack_mount.id,
+            field="api_version",
+            required=requires.api_version,
+            actual=api_version,
+        )

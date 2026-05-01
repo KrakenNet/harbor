@@ -27,7 +27,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 SCHEMAS_DIR = Path(__file__).resolve().parents[1] / "src" / "harbor" / "schemas"
 SOURCE_FILE = SCHEMAS_DIR / "ir-v1.json"
 TARGET_FILE = SCHEMAS_DIR / "ir-v1-draft7.json"

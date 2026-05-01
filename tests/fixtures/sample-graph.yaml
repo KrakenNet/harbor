@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase 1 VE2: 2-node graph, sqlite checkpoint, expected events:
+# TransitionEvent + ResultEvent.
+#
+# Minimal IRDocument fixture for the harbor-engine Phase 1 POC milestone
+# (task 1.29: `harbor run tests/fixtures/sample-graph.yaml` runs this graph
+# end-to-end with sqlite checkpoint + JSONL log). Two nodes -- ``node_a``
+# (echo input) transitions to ``node_b`` (halt). One Pydantic field in the
+# state schema (``message: str``); see ``tests/fixtures/sample_state.py``
+# for the matching ``SampleState`` BaseModel referenced by the runtime when
+# compiling ``state_schema`` into a typed model.
+#
+# No parallel, no DSPy, no MCP -- those land in later VE2 phases.
+ir_version: "1.0.0"
+id: "run:sample-graph"
+nodes:
+  - id: node_a
+    kind: echo
+  - id: node_b
+    kind: halt
+state_schema:
+  message: str
+rules:
+  - id: r-advance
+    when: "(initial-fact)"
+    then:
+      - kind: goto
+        target: node_b
+  - id: r-halt
+    when: "?n <- (node-id (id node_b))"
+    then:
+      - kind: halt
+        reason: "Phase-1 sample graph reached node_b"

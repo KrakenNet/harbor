@@ -42,7 +42,20 @@ def extract_actions(facts: list[dict[str, Any]]) -> list[Action]:
     """Translate ``harbor_action`` fact slot dicts into typed :data:`Action` instances.
 
     Each fact must carry a ``kind`` slot drawn from the six Harbor verbs
-    (``goto``, ``halt``, ``parallel``, ``retry``, ``assert``, ``retract``).
+    (``goto``, ``halt``, ``parallel``, ``retry``, ``assert``, ``retract``) or
+    one of the five native Fathom action kinds (``allow``, ``deny``,
+    ``escalate``, ``scope``, ``route``) per design §3.1.4 / §4.4 (Learning F,
+    FR-33). Native kinds are translated into the existing IR Action union:
+
+    * ``deny`` → :class:`HaltAction` with ``reason="denied-by-rule"``.
+    * ``escalate`` → :class:`GotoAction` with
+      ``target = fact["escalation_target"]``.
+    * ``route`` → :class:`GotoAction` with ``target = fact["target"]``.
+    * ``allow`` → no Action emitted (continue is the empty case; the runtime
+      translator walks the static IR edge).
+    * ``scope`` → no Action emitted (state-filter side effect is applied at
+      the adapter layer per design §3.1.4; no routing change).
+
     Unknown ``kind`` values raise :class:`ValidationError`; missing required
     variant fields propagate the underlying :class:`pydantic.ValidationError`
     from the Pydantic constructor.
@@ -78,6 +91,18 @@ def extract_actions(facts: list[dict[str, Any]]) -> list[Action]:
             )
         elif kind == "retract":
             actions.append(RetractAction(pattern=fact["pattern"]))
+        elif kind == "deny":
+            actions.append(HaltAction(reason="denied-by-rule"))
+        elif kind == "escalate":
+            actions.append(GotoAction(target=fact["escalation_target"]))
+        elif kind == "route":
+            actions.append(GotoAction(target=fact["target"]))
+        elif kind in {"allow", "scope"}:
+            # Native Fathom kinds with no IR Action mapping (design §3.1.4):
+            # - ``allow``: continue current edge (empty list = continue).
+            # - ``scope``: state filter applied at adapter layer; no routing
+            #   decision. Both are recognized (not rejected) and emit nothing.
+            continue
         else:
             raise ValidationError(
                 f"unknown harbor_action kind: {kind!r}",

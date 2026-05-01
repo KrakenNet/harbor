@@ -33,6 +33,14 @@ type ToolCall = Any
 type ToolResult = Any
 type StoreSpec = Any
 type PackSpec = Any
+type Route = Any
+"""FastAPI ``Route`` (or ``APIRouter``) returned by trigger plugins.
+
+Aliased to :data:`Any` so this module stays import-light: pulling FastAPI
+into ``harbor.plugin`` would force every plugin host to install it. Phase 2
++ tightens this to ``starlette.routing.BaseRoute`` once the serve module
+lands its FastAPI dependency officially.
+"""
 
 
 @hookspec
@@ -88,6 +96,71 @@ def authorize_action(action: dict[str, Any]) -> bool | None:
     """
 
 
+@hookspec
+def trigger_init(deps: dict[str, Any]) -> None:
+    """Trigger lifecycle: invoked once at lifespan startup.
+
+    The plugin sets up internal state from the ``deps`` mapping (which
+    carries the serve ``ServeContext`` plus any wiring the plugin needs).
+    Pluggy's default first-exception-halt is intentionally overridden by
+    :func:`harbor.plugin.triggers_dispatcher.dispatch_trigger_lifecycle`:
+    one trigger plugin's failure must not block other triggers from
+    initialising.
+    """
+
+
+@hookspec
+def trigger_start(deps: dict[str, Any]) -> None:
+    """Trigger lifecycle: invoked when the scheduler starts.
+
+    Plugin begins emitting ``TriggerEvent``s. Same per-plugin try/except
+    isolation as :func:`trigger_init`.
+    """
+
+
+@hookspec
+def trigger_stop(deps: dict[str, Any]) -> None:
+    """Trigger lifecycle: invoked on graceful shutdown.
+
+    Plugin drains in-flight work and stops emitting events. Same
+    per-plugin try/except isolation as :func:`trigger_init`.
+    """
+
+
+@hookspec
+def trigger_routes() -> list[Route]:
+    """Collect-all: each trigger plugin returns FastAPI routes to mount.
+
+    Webhook triggers return their HTTP endpoints here; cron-only triggers
+    return ``[]``. The serve app gathers and mounts every plugin's routes
+    during lifespan setup.
+    """
+    return []
+
+
+class TriggerHookSpec:
+    """Namespace alias for the trigger lifecycle hookspecs (design §6.3).
+
+    Pluggy registers hookspecs from the *module* (see
+    :func:`harbor.plugin.loader.build_plugin_manager`), so this class is
+    documentation/grouping only — it does not carry pluggy decorators.
+    Callers that prefer a class-shaped reference (per design §6.3) can
+    import :class:`TriggerHookSpec` and access the bound hookspec
+    callables.
+
+    .. note::
+       Per-plugin try/except isolation lives in
+       :mod:`harbor.plugin.triggers_dispatcher`. Direct ``pm.hook.<name>()``
+       calls fall back to pluggy's first-exception-halt default and are
+       unsafe for trigger lifecycles.
+    """
+
+    trigger_init = staticmethod(trigger_init)
+    trigger_start = staticmethod(trigger_start)
+    trigger_stop = staticmethod(trigger_stop)
+    trigger_routes = staticmethod(trigger_routes)
+
+
 # Expose ``firstresult`` as a direct attribute on each hookspec function
 # (pluggy stashes its config inside ``<project>_spec`` dicts, but Harbor
 # exposes a stable boolean attribute so callers and tests can inspect a
@@ -102,6 +175,10 @@ for _hook in (
     register_skills,
     register_stores,
     register_packs,
+    trigger_init,
+    trigger_start,
+    trigger_stop,
+    trigger_routes,
 ):
     _hook.firstresult = False  # type: ignore[attr-defined]
 del _hook

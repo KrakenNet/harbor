@@ -1,0 +1,714 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# 100-node IR fixture for structural_hash perf calibration (task 5.3, NFR-3).
+# Generated programmatically: 100 sequential echo nodes (node_000..node_099)
+# wired by 99 goto rules (r-advance-NNN: node_NNN -> node_(NNN+1)) plus a
+# terminal halt on node_099. Exercises rules (a) topology and (b) node
+# signatures of FR-4 amendment 3 at realistic scale without pulling in
+# DSPy/MCP/parallel surface area.
+ir_version: "1.0.0"
+id: "run:perf-100-node"
+nodes:
+  - id: node_000
+    kind: echo
+  - id: node_001
+    kind: echo
+  - id: node_002
+    kind: echo
+  - id: node_003
+    kind: echo
+  - id: node_004
+    kind: echo
+  - id: node_005
+    kind: echo
+  - id: node_006
+    kind: echo
+  - id: node_007
+    kind: echo
+  - id: node_008
+    kind: echo
+  - id: node_009
+    kind: echo
+  - id: node_010
+    kind: echo
+  - id: node_011
+    kind: echo
+  - id: node_012
+    kind: echo
+  - id: node_013
+    kind: echo
+  - id: node_014
+    kind: echo
+  - id: node_015
+    kind: echo
+  - id: node_016
+    kind: echo
+  - id: node_017
+    kind: echo
+  - id: node_018
+    kind: echo
+  - id: node_019
+    kind: echo
+  - id: node_020
+    kind: echo
+  - id: node_021
+    kind: echo
+  - id: node_022
+    kind: echo
+  - id: node_023
+    kind: echo
+  - id: node_024
+    kind: echo
+  - id: node_025
+    kind: echo
+  - id: node_026
+    kind: echo
+  - id: node_027
+    kind: echo
+  - id: node_028
+    kind: echo
+  - id: node_029
+    kind: echo
+  - id: node_030
+    kind: echo
+  - id: node_031
+    kind: echo
+  - id: node_032
+    kind: echo
+  - id: node_033
+    kind: echo
+  - id: node_034
+    kind: echo
+  - id: node_035
+    kind: echo
+  - id: node_036
+    kind: echo
+  - id: node_037
+    kind: echo
+  - id: node_038
+    kind: echo
+  - id: node_039
+    kind: echo
+  - id: node_040
+    kind: echo
+  - id: node_041
+    kind: echo
+  - id: node_042
+    kind: echo
+  - id: node_043
+    kind: echo
+  - id: node_044
+    kind: echo
+  - id: node_045
+    kind: echo
+  - id: node_046
+    kind: echo
+  - id: node_047
+    kind: echo
+  - id: node_048
+    kind: echo
+  - id: node_049
+    kind: echo
+  - id: node_050
+    kind: echo
+  - id: node_051
+    kind: echo
+  - id: node_052
+    kind: echo
+  - id: node_053
+    kind: echo
+  - id: node_054
+    kind: echo
+  - id: node_055
+    kind: echo
+  - id: node_056
+    kind: echo
+  - id: node_057
+    kind: echo
+  - id: node_058
+    kind: echo
+  - id: node_059
+    kind: echo
+  - id: node_060
+    kind: echo
+  - id: node_061
+    kind: echo
+  - id: node_062
+    kind: echo
+  - id: node_063
+    kind: echo
+  - id: node_064
+    kind: echo
+  - id: node_065
+    kind: echo
+  - id: node_066
+    kind: echo
+  - id: node_067
+    kind: echo
+  - id: node_068
+    kind: echo
+  - id: node_069
+    kind: echo
+  - id: node_070
+    kind: echo
+  - id: node_071
+    kind: echo
+  - id: node_072
+    kind: echo
+  - id: node_073
+    kind: echo
+  - id: node_074
+    kind: echo
+  - id: node_075
+    kind: echo
+  - id: node_076
+    kind: echo
+  - id: node_077
+    kind: echo
+  - id: node_078
+    kind: echo
+  - id: node_079
+    kind: echo
+  - id: node_080
+    kind: echo
+  - id: node_081
+    kind: echo
+  - id: node_082
+    kind: echo
+  - id: node_083
+    kind: echo
+  - id: node_084
+    kind: echo
+  - id: node_085
+    kind: echo
+  - id: node_086
+    kind: echo
+  - id: node_087
+    kind: echo
+  - id: node_088
+    kind: echo
+  - id: node_089
+    kind: echo
+  - id: node_090
+    kind: echo
+  - id: node_091
+    kind: echo
+  - id: node_092
+    kind: echo
+  - id: node_093
+    kind: echo
+  - id: node_094
+    kind: echo
+  - id: node_095
+    kind: echo
+  - id: node_096
+    kind: echo
+  - id: node_097
+    kind: echo
+  - id: node_098
+    kind: echo
+  - id: node_099
+    kind: echo
+state_schema:
+  counter: int
+rules:
+  - id: r-advance-000
+    when: "(node-id (id node_000))"
+    then:
+      - kind: goto
+        target: node_001
+  - id: r-advance-001
+    when: "(node-id (id node_001))"
+    then:
+      - kind: goto
+        target: node_002
+  - id: r-advance-002
+    when: "(node-id (id node_002))"
+    then:
+      - kind: goto
+        target: node_003
+  - id: r-advance-003
+    when: "(node-id (id node_003))"
+    then:
+      - kind: goto
+        target: node_004
+  - id: r-advance-004
+    when: "(node-id (id node_004))"
+    then:
+      - kind: goto
+        target: node_005
+  - id: r-advance-005
+    when: "(node-id (id node_005))"
+    then:
+      - kind: goto
+        target: node_006
+  - id: r-advance-006
+    when: "(node-id (id node_006))"
+    then:
+      - kind: goto
+        target: node_007
+  - id: r-advance-007
+    when: "(node-id (id node_007))"
+    then:
+      - kind: goto
+        target: node_008
+  - id: r-advance-008
+    when: "(node-id (id node_008))"
+    then:
+      - kind: goto
+        target: node_009
+  - id: r-advance-009
+    when: "(node-id (id node_009))"
+    then:
+      - kind: goto
+        target: node_010
+  - id: r-advance-010
+    when: "(node-id (id node_010))"
+    then:
+      - kind: goto
+        target: node_011
+  - id: r-advance-011
+    when: "(node-id (id node_011))"
+    then:
+      - kind: goto
+        target: node_012
+  - id: r-advance-012
+    when: "(node-id (id node_012))"
+    then:
+      - kind: goto
+        target: node_013
+  - id: r-advance-013
+    when: "(node-id (id node_013))"
+    then:
+      - kind: goto
+        target: node_014
+  - id: r-advance-014
+    when: "(node-id (id node_014))"
+    then:
+      - kind: goto
+        target: node_015
+  - id: r-advance-015
+    when: "(node-id (id node_015))"
+    then:
+      - kind: goto
+        target: node_016
+  - id: r-advance-016
+    when: "(node-id (id node_016))"
+    then:
+      - kind: goto
+        target: node_017
+  - id: r-advance-017
+    when: "(node-id (id node_017))"
+    then:
+      - kind: goto
+        target: node_018
+  - id: r-advance-018
+    when: "(node-id (id node_018))"
+    then:
+      - kind: goto
+        target: node_019
+  - id: r-advance-019
+    when: "(node-id (id node_019))"
+    then:
+      - kind: goto
+        target: node_020
+  - id: r-advance-020
+    when: "(node-id (id node_020))"
+    then:
+      - kind: goto
+        target: node_021
+  - id: r-advance-021
+    when: "(node-id (id node_021))"
+    then:
+      - kind: goto
+        target: node_022
+  - id: r-advance-022
+    when: "(node-id (id node_022))"
+    then:
+      - kind: goto
+        target: node_023
+  - id: r-advance-023
+    when: "(node-id (id node_023))"
+    then:
+      - kind: goto
+        target: node_024
+  - id: r-advance-024
+    when: "(node-id (id node_024))"
+    then:
+      - kind: goto
+        target: node_025
+  - id: r-advance-025
+    when: "(node-id (id node_025))"
+    then:
+      - kind: goto
+        target: node_026
+  - id: r-advance-026
+    when: "(node-id (id node_026))"
+    then:
+      - kind: goto
+        target: node_027
+  - id: r-advance-027
+    when: "(node-id (id node_027))"
+    then:
+      - kind: goto
+        target: node_028
+  - id: r-advance-028
+    when: "(node-id (id node_028))"
+    then:
+      - kind: goto
+        target: node_029
+  - id: r-advance-029
+    when: "(node-id (id node_029))"
+    then:
+      - kind: goto
+        target: node_030
+  - id: r-advance-030
+    when: "(node-id (id node_030))"
+    then:
+      - kind: goto
+        target: node_031
+  - id: r-advance-031
+    when: "(node-id (id node_031))"
+    then:
+      - kind: goto
+        target: node_032
+  - id: r-advance-032
+    when: "(node-id (id node_032))"
+    then:
+      - kind: goto
+        target: node_033
+  - id: r-advance-033
+    when: "(node-id (id node_033))"
+    then:
+      - kind: goto
+        target: node_034
+  - id: r-advance-034
+    when: "(node-id (id node_034))"
+    then:
+      - kind: goto
+        target: node_035
+  - id: r-advance-035
+    when: "(node-id (id node_035))"
+    then:
+      - kind: goto
+        target: node_036
+  - id: r-advance-036
+    when: "(node-id (id node_036))"
+    then:
+      - kind: goto
+        target: node_037
+  - id: r-advance-037
+    when: "(node-id (id node_037))"
+    then:
+      - kind: goto
+        target: node_038
+  - id: r-advance-038
+    when: "(node-id (id node_038))"
+    then:
+      - kind: goto
+        target: node_039
+  - id: r-advance-039
+    when: "(node-id (id node_039))"
+    then:
+      - kind: goto
+        target: node_040
+  - id: r-advance-040
+    when: "(node-id (id node_040))"
+    then:
+      - kind: goto
+        target: node_041
+  - id: r-advance-041
+    when: "(node-id (id node_041))"
+    then:
+      - kind: goto
+        target: node_042
+  - id: r-advance-042
+    when: "(node-id (id node_042))"
+    then:
+      - kind: goto
+        target: node_043
+  - id: r-advance-043
+    when: "(node-id (id node_043))"
+    then:
+      - kind: goto
+        target: node_044
+  - id: r-advance-044
+    when: "(node-id (id node_044))"
+    then:
+      - kind: goto
+        target: node_045
+  - id: r-advance-045
+    when: "(node-id (id node_045))"
+    then:
+      - kind: goto
+        target: node_046
+  - id: r-advance-046
+    when: "(node-id (id node_046))"
+    then:
+      - kind: goto
+        target: node_047
+  - id: r-advance-047
+    when: "(node-id (id node_047))"
+    then:
+      - kind: goto
+        target: node_048
+  - id: r-advance-048
+    when: "(node-id (id node_048))"
+    then:
+      - kind: goto
+        target: node_049
+  - id: r-advance-049
+    when: "(node-id (id node_049))"
+    then:
+      - kind: goto
+        target: node_050
+  - id: r-advance-050
+    when: "(node-id (id node_050))"
+    then:
+      - kind: goto
+        target: node_051
+  - id: r-advance-051
+    when: "(node-id (id node_051))"
+    then:
+      - kind: goto
+        target: node_052
+  - id: r-advance-052
+    when: "(node-id (id node_052))"
+    then:
+      - kind: goto
+        target: node_053
+  - id: r-advance-053
+    when: "(node-id (id node_053))"
+    then:
+      - kind: goto
+        target: node_054
+  - id: r-advance-054
+    when: "(node-id (id node_054))"
+    then:
+      - kind: goto
+        target: node_055
+  - id: r-advance-055
+    when: "(node-id (id node_055))"
+    then:
+      - kind: goto
+        target: node_056
+  - id: r-advance-056
+    when: "(node-id (id node_056))"
+    then:
+      - kind: goto
+        target: node_057
+  - id: r-advance-057
+    when: "(node-id (id node_057))"
+    then:
+      - kind: goto
+        target: node_058
+  - id: r-advance-058
+    when: "(node-id (id node_058))"
+    then:
+      - kind: goto
+        target: node_059
+  - id: r-advance-059
+    when: "(node-id (id node_059))"
+    then:
+      - kind: goto
+        target: node_060
+  - id: r-advance-060
+    when: "(node-id (id node_060))"
+    then:
+      - kind: goto
+        target: node_061
+  - id: r-advance-061
+    when: "(node-id (id node_061))"
+    then:
+      - kind: goto
+        target: node_062
+  - id: r-advance-062
+    when: "(node-id (id node_062))"
+    then:
+      - kind: goto
+        target: node_063
+  - id: r-advance-063
+    when: "(node-id (id node_063))"
+    then:
+      - kind: goto
+        target: node_064
+  - id: r-advance-064
+    when: "(node-id (id node_064))"
+    then:
+      - kind: goto
+        target: node_065
+  - id: r-advance-065
+    when: "(node-id (id node_065))"
+    then:
+      - kind: goto
+        target: node_066
+  - id: r-advance-066
+    when: "(node-id (id node_066))"
+    then:
+      - kind: goto
+        target: node_067
+  - id: r-advance-067
+    when: "(node-id (id node_067))"
+    then:
+      - kind: goto
+        target: node_068
+  - id: r-advance-068
+    when: "(node-id (id node_068))"
+    then:
+      - kind: goto
+        target: node_069
+  - id: r-advance-069
+    when: "(node-id (id node_069))"
+    then:
+      - kind: goto
+        target: node_070
+  - id: r-advance-070
+    when: "(node-id (id node_070))"
+    then:
+      - kind: goto
+        target: node_071
+  - id: r-advance-071
+    when: "(node-id (id node_071))"
+    then:
+      - kind: goto
+        target: node_072
+  - id: r-advance-072
+    when: "(node-id (id node_072))"
+    then:
+      - kind: goto
+        target: node_073
+  - id: r-advance-073
+    when: "(node-id (id node_073))"
+    then:
+      - kind: goto
+        target: node_074
+  - id: r-advance-074
+    when: "(node-id (id node_074))"
+    then:
+      - kind: goto
+        target: node_075
+  - id: r-advance-075
+    when: "(node-id (id node_075))"
+    then:
+      - kind: goto
+        target: node_076
+  - id: r-advance-076
+    when: "(node-id (id node_076))"
+    then:
+      - kind: goto
+        target: node_077
+  - id: r-advance-077
+    when: "(node-id (id node_077))"
+    then:
+      - kind: goto
+        target: node_078
+  - id: r-advance-078
+    when: "(node-id (id node_078))"
+    then:
+      - kind: goto
+        target: node_079
+  - id: r-advance-079
+    when: "(node-id (id node_079))"
+    then:
+      - kind: goto
+        target: node_080
+  - id: r-advance-080
+    when: "(node-id (id node_080))"
+    then:
+      - kind: goto
+        target: node_081
+  - id: r-advance-081
+    when: "(node-id (id node_081))"
+    then:
+      - kind: goto
+        target: node_082
+  - id: r-advance-082
+    when: "(node-id (id node_082))"
+    then:
+      - kind: goto
+        target: node_083
+  - id: r-advance-083
+    when: "(node-id (id node_083))"
+    then:
+      - kind: goto
+        target: node_084
+  - id: r-advance-084
+    when: "(node-id (id node_084))"
+    then:
+      - kind: goto
+        target: node_085
+  - id: r-advance-085
+    when: "(node-id (id node_085))"
+    then:
+      - kind: goto
+        target: node_086
+  - id: r-advance-086
+    when: "(node-id (id node_086))"
+    then:
+      - kind: goto
+        target: node_087
+  - id: r-advance-087
+    when: "(node-id (id node_087))"
+    then:
+      - kind: goto
+        target: node_088
+  - id: r-advance-088
+    when: "(node-id (id node_088))"
+    then:
+      - kind: goto
+        target: node_089
+  - id: r-advance-089
+    when: "(node-id (id node_089))"
+    then:
+      - kind: goto
+        target: node_090
+  - id: r-advance-090
+    when: "(node-id (id node_090))"
+    then:
+      - kind: goto
+        target: node_091
+  - id: r-advance-091
+    when: "(node-id (id node_091))"
+    then:
+      - kind: goto
+        target: node_092
+  - id: r-advance-092
+    when: "(node-id (id node_092))"
+    then:
+      - kind: goto
+        target: node_093
+  - id: r-advance-093
+    when: "(node-id (id node_093))"
+    then:
+      - kind: goto
+        target: node_094
+  - id: r-advance-094
+    when: "(node-id (id node_094))"
+    then:
+      - kind: goto
+        target: node_095
+  - id: r-advance-095
+    when: "(node-id (id node_095))"
+    then:
+      - kind: goto
+        target: node_096
+  - id: r-advance-096
+    when: "(node-id (id node_096))"
+    then:
+      - kind: goto
+        target: node_097
+  - id: r-advance-097
+    when: "(node-id (id node_097))"
+    then:
+      - kind: goto
+        target: node_098
+  - id: r-advance-098
+    when: "(node-id (id node_098))"
+    then:
+      - kind: goto
+        target: node_099
+  - id: r-halt
+    when: "(node-id (id node_099))"
+    then:
+      - kind: halt
+        reason: "100-node perf fixture terminal"

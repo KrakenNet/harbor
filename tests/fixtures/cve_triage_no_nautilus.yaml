@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3 task 3.26 fixture: CVE-triage IR with the broker step REMOVED.
+#
+# Topology (linear, broker-free):
+#
+#   source -> retrieve_kv -> ml_score -> dspy_summary -> clips_route
+#       -> approval_gate (interrupt) -> write_record (artifact) -> action
+#
+# This is the "Nautilus removed" composition variant per task 3.26 +
+# AC-11.5 (Decision-Diamond DD-3): the validation-gate must hold even
+# when the Nautilus integration is removed wholesale. The HITL boundary
+# (`approval_gate`) and the artifact write (`write_record`) still fire
+# in this form, proving they are not load-bearing on the broker step.
+ir_version: "1.0.0"
+id: "run:cve-triage-no-nautilus"
+nodes:
+  - id: source
+    kind: passthrough
+  - id: retrieve_kv
+    kind: passthrough
+  - id: ml_score
+    kind: passthrough
+  - id: dspy_summary
+    kind: passthrough
+  - id: clips_route
+    kind: passthrough
+  - id: write_record
+    kind: write_artifact
+  - id: approval_gate
+    kind: interrupt
+  - id: action
+    kind: passthrough
+state_schema:
+  agent_id: str
+  intent: str
+  cve_record_bytes: bytes

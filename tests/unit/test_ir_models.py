@@ -41,6 +41,7 @@ from harbor.ir._models import (
     SlotDef,
     ToolSpec,
 )
+from harbor.tools.spec import SideEffects
 
 _ACTION_ADAPTER: TypeAdapter[Action] = TypeAdapter(Action)
 
@@ -196,7 +197,7 @@ def test_toolspec_cost_estimate_is_decimal_not_float() -> None:
         description="d",
         input_schema={"type": "object"},
         output_schema={"type": "object"},
-        side_effects=False,
+        side_effects=SideEffects.none,
         cost_estimate=Decimal("0.0125"),
     )
     assert isinstance(spec.cost_estimate, Decimal)
@@ -209,7 +210,7 @@ def test_toolspec_cost_estimate_is_decimal_not_float() -> None:
             "description": "d",
             "input_schema": {},
             "output_schema": {},
-            "side_effects": True,
+            "side_effects": "write",
             "cost_estimate": "0.5",
         },
     )

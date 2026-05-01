@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase 4 VE2: 4-node graph exercising a DSPy node end-to-end.
+#
+# Topology (linear, no parallel/quorum -- those are covered by phase3 fixtures):
+#
+#     node_a (echo)            -- seed input into state
+#         |
+#         v
+#     node_b (dspy)            -- stub DSPy module; no live LLM
+#         |
+#         v
+#     node_c (echo)            -- carry projected DSPy output
+#         |
+#         v
+#     node_d (halt)
+#
+# Expected Phase 4 VE2 JSONL event stream (per FR-13 + design §3.7):
+#
+#   1. TransitionEvent(from=<start>, to=node_a)
+#   2. TransitionEvent(from=node_a,  to=node_b)
+#   3. ToolCallEvent(node=node_b, kind="dspy", module="harbor.tests.dspy_stub")
+#   4. ToolResultEvent(node=node_b, ok=true, projected_outputs={"answer": ...})
+#   5. TransitionEvent(from=node_b,  to=node_c)
+#   6. TransitionEvent(from=node_c,  to=node_d)
+#   7. ResultEvent(reason="Phase-4 sample graph reached node_d")
+#
+# Hermetic determinism contract:
+#   - The DSPy module bound to node_b is a stub (no LLM round-trip), so the
+#     paired vcrpy cassette ``tests/fixtures/dspy-cassette.yaml`` records
+#     zero HTTP interactions. Loading it under ``record_mode="none"`` (CI
+#     default) satisfies the cassette-loadable contract without ever firing
+#     a real request -- if the runtime accidentally calls a live LLM, vcrpy
+#     raises ``CannotOverwriteExistingCassetteException`` and the test is
+#     loud-fail per FR-28.
+#   - The sqlite checkpoint store is populated at every TransitionEvent; on
+#     a clean run it ends with state pinned at node_d and the run-id keyed
+#     row visible in ``checkpoints``.
+#
+# No parallel, MCP, quorum/race, or governance pack -- each of those rides
+# its own dedicated VE2 fixture.
+ir_version: "1.0.0"
+id: "run:sample-graph-phase4"
+nodes:
+  - id: node_a
+    kind: echo
+  - id: node_b
+    kind: dspy
+  - id: node_c
+    kind: echo
+  - id: node_d
+    kind: halt
+state_schema:
+  message: str
+  answer: str
+rules:
+  - id: r-advance-to-dspy
+    when: "(initial-fact)"
+    then:
+      - kind: goto
+        target: node_b
+  - id: r-advance-to-echo
+    when: "?n <- (node-id (id node_b))"
+    then:
+      - kind: goto
+        target: node_c
+  - id: r-advance-to-halt
+    when: "?n <- (node-id (id node_c))"
+    then:
+      - kind: goto
+        target: node_d
+  - id: r-halt
+    when: "?n <- (node-id (id node_d))"
+    then:
+      - kind: halt
+        reason: "Phase-4 sample graph reached node_d"

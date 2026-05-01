@@ -4,10 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "harbor"
-version = "0.1.0"
+version = "0.2.0"
 description = "Stateful agent-graph framework with deterministic governance via Fathom"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13,<3.14"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Kraken Networks", email = "info@krakennetworks.com" }]
@@ -31,6 +31,51 @@ dependencies = [
     "structlog>=24.1",
     "anyio>=4.3",
     "uuid-utils>=0.8",
+    "dspy>=3.0.4,<3.4",
+    "mcp>=1.0",
+    "aiosqlite>=0.20",
+    "asyncpg>=0.29",
+    "rfc8785>=0.1.4,<0.2",
+    "orjson>=3.10",
+    "typer>=0.12",
+    "jsonpatch>=1.33",
+    "cryptography>=47.0.0",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "httpx>=0.27",
+    "cronsim>=2.6",
+    "pyjwt[crypto]>=2.8",
+    "nautilus-rkm==0.1.2",
+    "blake3>=0.4",
+    "argon2-cffi>=23.1",
+]
+
+[tool.uv.sources]
+# nautilus-rkm is not on PyPI; resolve from the sibling worktree path.
+# Path is relative to this pyproject.toml (in .worktrees/harbor-engine/).
+nautilus-rkm = { path = "../../nautilus", editable = false }
+
+[project.optional-dependencies]
+ml = [
+    "scikit-learn",
+    "xgboost>=2.1",
+    "onnxruntime>=1.18",
+    "skops>=0.10",
+    "joblib",
+]
+# Note on `kuzu==0.11.3`: Kuzu's GitHub repo was archived 2025-10-10 after
+# Apple acquired Kuzu Inc. (Oct 2025). Active community fork lives at
+# `predictable-labs/ryugraph`. Harbor abstracts Kuzu behind GraphStore so
+# swapping to RyuGraph is a one-file change. Pin tight until the fork story
+# stabilizes. (FR-11, AC-12.1)
+stores = [
+    "lancedb>=0.30.2,<0.40",
+    "kuzu==0.11.3",
+    "pyarrow>=15",
+]
+skills-rag = [
+    "sentence-transformers>=5.0,<6",
+    "huggingface_hub>=0.25",
 ]
 
 [project.urls]
@@ -51,6 +96,18 @@ harbor = "harbor.cli:main"
 # Note: harbor.{tools,skills,stores,packs} have NO core entries — they are
 # entirely populated by external plugin distributions.
 
+# Built-in trigger plugins (design §6.3, FR-3/4/5). Cron + Webhook land in
+# tasks 2.10 / 2.11; manual is the simplest baseline (CLI + HTTP convergence).
+[project.entry-points."harbor.triggers"]
+manual = "harbor.triggers.manual:ManualTrigger"
+cron = "harbor.triggers.cron:CronTrigger"
+webhook = "harbor.triggers.webhook:WebhookTrigger"
+
+# Built-in Nautilus tool plugin (design §8.2, FR-45). Registry-discoverable
+# `@tool`-decorated coroutine that calls the lifespan-singleton Broker.
+[project.entry-points."harbor.tools"]
+broker_request = "harbor.tools.nautilus.broker_request:broker_request"
+
 [dependency-groups]
 dev = [
     "ruff>=0.6",
@@ -61,6 +118,13 @@ dev = [
     "hypothesis>=6.0",
     "pre-commit>=3.7",
     "codespell>=2.2",
+    "vcrpy>=6.0",
+    "pytest-recording>=0.13",
+    "testcontainers[postgresql]>=4.0",
+    "testcontainers[neo4j]>=4.0",
+    "trustme>=1.2",
+    "time-machine>=3.2.0",
+    "pytest-benchmark>=5.2.3",
 ]
 docs = [
     "mkdocs-material>=9.5",
@@ -107,6 +171,12 @@ markers = [
     "unit: fast unit tests (no external deps)",
     "integration: requires Fathom CLIPS / external services",
     "slow: long-running tests",
+    "knowledge: harbor-knowledge subsystem tests (stores, skills, retrieval, memory)",
+    "serve: harbor-serve subsystem tests (umbrella for serve-related markers)",
+    "websocket: WebSocket / streaming tests",
+    "api: FastAPI HTTP API tests",
+    "trigger: trigger plugin tests (manual/cron/webhook)",
+    "scheduler: scheduler / queue tests",
 ]
 
 [tool.coverage.run]

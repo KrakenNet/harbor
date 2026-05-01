@@ -14,7 +14,6 @@ import argparse
 import subprocess
 import sys
 
-
 GUARDED_PREFIXES = ("src/harbor/ir/", "src/harbor/schemas/")
 CHANGELOG = "CHANGELOG.md"
 
@@ -41,8 +40,7 @@ def main() -> int:
 
     if touched_guarded and not changelog_touched:
         sys.stderr.write(
-            "ERROR: IR/schema files changed without a CHANGELOG.md entry (NFR-2).\n"
-            "Touched files:\n"
+            "ERROR: IR/schema files changed without a CHANGELOG.md entry (NFR-2).\nTouched files:\n"
         )
         for f in touched_guarded:
             sys.stderr.write(f"  - {f}\n")

@@ -50,11 +50,42 @@ nav:
       - Write a tool plugin: how-to/write-tool-plugin.md
       - Author a Bosun pack: how-to/bosun-pack.md
       - Persist with checkpointer: how-to/checkpointer.md
+      - Air-gap deployment: guides/air-gap-deployment.md
+  - Security:
+      - STRIDE threat model: security/threat-model.md
+      - Sign-off rubric: security/sign-off.md
   - Concepts:
       - Overview: concepts/index.md
       - IR & schema: concepts/ir.md
       - Plugin model: concepts/plugins.md
       - Provenance & replay: concepts/provenance.md
+  - Engine:
+      - Overview: engine/index.md
+      - Checkpointer Protocol: engine/checkpointer.md
+      - Replay: engine/replay.md
+      - Counterfactuals: engine/counterfactual.md
+  - Serve:
+      - Overview: serve/overview.md
+      - HTTP API: serve/api.md
+      - WebSocket stream: serve/ws.md
+      - Triggers: serve/triggers.md
+      - Scheduler: serve/scheduler.md
+      - Run history: serve/runs.md
+      - CLI: serve/cli.md
+      - Bosun packs: serve/bosun.md
+      - Profiles: serve/profiles.md
+      - Nautilus broker: serve/nautilus.md
+      - HITL: serve/hitl.md
+      - Artifacts: serve/artifacts.md
+  - Knowledge:
+      - Overview: knowledge/index.md
+      - Stores: knowledge/stores.md
+      - Skills: knowledge/skills.md
+      - Memory: knowledge/memory.md
+      - Retrieval: knowledge/retrieval.md
+      - Cypher subset: knowledge/cypher-subset.md
+      - Air-gap deployment: knowledge/air-gap.md
+      - Reference skills tutorial: knowledge/reference-skills.md
   - Explanation:
       - Versioning policy: explanation/versioning.md
       - Fathom gaps: explanation/fathom-gaps.md
