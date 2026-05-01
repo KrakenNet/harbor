@@ -160,6 +160,36 @@ def _resolve_node_factory(kind: str) -> type[NodeBase]:
     return cls
 
 
+def _configure_lm(
+    lm_url: str | None,
+    lm_model: str | None,
+    lm_key: str,
+    lm_timeout: int,
+) -> None:
+    """Configure dspy.LM if both --lm-url and --lm-model are set.
+
+    Failing-loud if exactly one is set: pairing is mandatory. Skipping the
+    call entirely when both are None lets graphs without DSPy nodes run
+    without dragging in dspy at all.
+    """
+    if (lm_url is None) != (lm_model is None):
+        raise typer.BadParameter(
+            "--lm-url and --lm-model must be specified together (or neither)"
+        )
+    if lm_url is None:
+        return
+    import dspy  # pyright: ignore[reportMissingTypeStubs]
+
+    dspy.configure(  # pyright: ignore[reportUnknownMemberType]
+        lm=dspy.LM(  # pyright: ignore[reportUnknownMemberType]
+            f"openai/{lm_model}",
+            api_base=lm_url,
+            api_key=lm_key,
+            timeout=lm_timeout,
+        )
+    )
+
+
 def _build_node_registry(nodes: list[NodeSpec]) -> dict[str, NodeBase]:
     """Map ``node_id -> NodeBase`` for every node in ``nodes``.
 
@@ -276,6 +306,34 @@ def cmd(
             help="fail on awaiting-input instead of prompting",
         ),
     ] = False,
+    lm_url: Annotated[
+        str | None,
+        typer.Option(
+            "--lm-url",
+            help="LLM endpoint URL for DSPy nodes (OpenAI-compatible). Pair with --lm-model.",
+        ),
+    ] = None,
+    lm_model: Annotated[
+        str | None,
+        typer.Option(
+            "--lm-model",
+            help="LLM model identifier (e.g. gpt-oss:20b). Required if --lm-url is set.",
+        ),
+    ] = None,
+    lm_key: Annotated[
+        str,
+        typer.Option(
+            "--lm-key",
+            help="API key for the LLM endpoint. Defaults to 'placeholder' (works for ollama).",
+        ),
+    ] = "placeholder",
+    lm_timeout: Annotated[
+        int,
+        typer.Option(
+            "--lm-timeout",
+            help="LLM call timeout in seconds.",
+        ),
+    ] = 60,
 ) -> None:
     """Run a Harbor graph end-to-end (FR-8 POC).
 
@@ -289,6 +347,8 @@ def cmd(
     """
     if quiet and verbose:
         raise typer.BadParameter("--quiet and --verbose are mutually exclusive")
+
+    _configure_lm(lm_url, lm_model, lm_key, lm_timeout)
 
     ir_dict = yaml.safe_load(graph.read_text(encoding="utf-8"))
     ir = IRDocument.model_validate(ir_dict)
