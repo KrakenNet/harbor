@@ -3,7 +3,7 @@ requires = ["hatchling>=1.26"]
 build-backend = "hatchling.build"
 
 [project]
-name = "harbor"
+name = "stargraph"
 version = "0.2.0"
 description = "Stateful agent-graph framework with deterministic governance via Fathom"
 readme = "README.md"
