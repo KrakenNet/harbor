@@ -1,0 +1,43 @@
+name: docs-deploy
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "mike version alias (e.g. 0.1 or latest)"
+        required: true
+        default: "latest"
+permissions:
+  contents: write
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: astral-sh/setup-uv@v3
+        with: { python-version: "3.13" }
+      - run: uv sync --group docs
+      - run: |
+          git config user.name "docs-bot"
+          git config user.email "docs-bot@users.noreply.github.com"
+      - name: Resolve version
+        id: v
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "alias=" >> "$GITHUB_OUTPUT"
+          else
+            TAG="${GITHUB_REF##refs/tags/}"; VER="${TAG#v}"
+            MM="$(echo "$VER" | awk -F. '{print $1"."$2}')"
+            echo "version=${MM}" >> "$GITHUB_OUTPUT"
+            echo "alias=latest" >> "$GITHUB_OUTPUT"
+          fi
+      - run: |
+          if [ -n "${{ steps.v.outputs.alias }}" ]; then
+            uv run mike deploy --push --update-aliases ${{ steps.v.outputs.version }} ${{ steps.v.outputs.alias }}
+            uv run mike set-default --push ${{ steps.v.outputs.alias }}
+          else
+            uv run mike deploy --push ${{ steps.v.outputs.version }}
+          fi

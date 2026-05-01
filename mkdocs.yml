@@ -1,0 +1,74 @@
+site_name: Harbor
+site_description: Stateful agent-graph framework with deterministic governance
+site_url: https://harbor.krakn.ai
+repo_url: https://github.com/KrakenNet/harbor
+repo_name: KrakenNet/harbor
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle: { icon: material/brightness-7, name: Switch to dark mode }
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle: { icon: material/brightness-4, name: Switch to light mode }
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_source: true
+            show_root_heading: true
+            members_order: source
+
+extra:
+  version: { provider: mike, default: latest, alias: true }
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Tutorials:
+      - Overview: tutorials/index.md
+      - First graph: tutorials/first-graph.md
+      - Add a Fathom rule pack: tutorials/fathom-rules.md
+  - How-to Guides:
+      - Overview: how-to/index.md
+      - Write a tool plugin: how-to/write-tool-plugin.md
+      - Author a Bosun pack: how-to/bosun-pack.md
+      - Persist with checkpointer: how-to/checkpointer.md
+  - Concepts:
+      - Overview: concepts/index.md
+      - IR & schema: concepts/ir.md
+      - Plugin model: concepts/plugins.md
+      - Provenance & replay: concepts/provenance.md
+  - Explanation:
+      - Versioning policy: explanation/versioning.md
+      - Fathom gaps: explanation/fathom-gaps.md
+  - Reference:
+      - Python API: reference/python/index.md
+      - IR JSON Schema: reference/ir-schema.md
+      - Plugin manifest: reference/plugin-manifest.md
+      - CLI: reference/cli.md
+      - Release signing: reference/signing.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight: { anchor_linenums: true }
+  - pymdownx.tabbed: { alternate_style: true }
+  - toc: { permalink: true }

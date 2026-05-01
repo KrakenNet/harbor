@@ -1,0 +1,16 @@
+name: release
+on:
+  push:
+    tags: ["v*.*.*"]
+permissions:
+  id-token: write     # PyPI trusted publishing
+  contents: read
+jobs:
+  build-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with: { python-version: "3.13" }
+      - run: uv build
+      - uses: pypa/gh-action-pypi-publish@release/v1

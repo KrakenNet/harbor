@@ -1,0 +1,124 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "harbor"
+version = "0.1.0"
+description = "Stateful agent-graph framework with deterministic governance via Fathom"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Kraken Networks", email = "info@krakennetworks.com" }]
+keywords = ["agents", "graph", "ir", "fathom", "governance", "ai", "policy"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pydantic>=2.9",
+    "pluggy>=1.5",
+    "fathom-rules>=0.3.1",
+    "jsonschema>=4.21",
+    "pyyaml>=6.0",
+    "structlog>=24.1",
+    "anyio>=4.3",
+    "uuid-utils>=0.8",
+]
+
+[project.urls]
+Homepage = "https://harbor.krakn.ai"
+Repository = "https://github.com/KrakenNet/harbor"
+Documentation = "https://harbor.krakn.ai"
+Changelog = "https://github.com/KrakenNet/harbor/blob/main/CHANGELOG.md"
+Issues = "https://github.com/KrakenNet/harbor/issues"
+
+[project.scripts]
+harbor = "harbor.cli:main"
+
+# Public extension groups — plugins register here
+[project.entry-points."harbor"]
+# (reserved — Harbor itself does not register here; downstream plugins use it
+#  for the harbor_plugin manifest entry-point)
+
+# Note: harbor.{tools,skills,stores,packs} have NO core entries — they are
+# entirely populated by external plugin distributions.
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6",
+    "pyright>=1.1.380",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.0",
+    "pre-commit>=3.7",
+    "codespell>=2.2",
+]
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.24",
+    "mkdocs-redirects>=1.2",
+    "mike>=2.1",
+]
+release = [
+    "build>=1.2",
+    "twine>=5.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/harbor"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/harbor", "tests", "README.md", "LICENSE", "CHANGELOG.md"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "SIM", "TCH", "ASYNC", "RUF"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]  # asserts allowed in tests
+
+[tool.pyright]
+strict = ["src/harbor", "tests"]
+include = ["src/harbor", "tests"]
+pythonVersion = "3.12"
+venvPath = "."
+venv = ".venv"
+reportMissingTypeStubs = "warning"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "--strict-markers --cov=harbor --cov-branch -ra"
+markers = [
+    "unit: fast unit tests (no external deps)",
+    "integration: requires Fathom CLIPS / external services",
+    "slow: long-running tests",
+]
+
+[tool.coverage.run]
+source = ["harbor"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.",
+    "@overload",
+]

@@ -1,0 +1,104 @@
+module: poc
+ruleset: poc-smoke
+version: "1.0"
+# Five Fathom rules covering five Harbor action verbs.
+#
+# All rules match a single ``evidence`` fact (with provenance slots seeded by
+# ``FathomAdapter.assert_with_provenance``) and emit one ``harbor_action`` fact
+# each. Salience is laid out in firing order (descending) so the POC test can
+# assert a deterministic kind sequence.
+#
+# Symbol-typed slots (``kind``, ``strategy``) are filled via ``(sym-cat …)`` so
+# Fathom's RHS slot emitter passes them verbatim into the CLIPS s-expression
+# (Fathom would otherwise quote bare symbols and CLIPS would reject the symbol
+# constraint). The multislot ``targets`` is filled via ``(create$ …)``.
+#
+# Rule ``rule-goto-on-source`` references the provenance slot ``_source`` in
+# its ``when`` clause, satisfying the task requirement that at least one
+# ``when`` reads provenance.
+rules:
+  - name: rule-goto-on-source
+    salience: 50
+    when:
+      - template: evidence
+        conditions:
+          - slot: _source
+            expression: 'equals("test")'
+          - slot: field
+            expression: 'equals("phase")'
+    then:
+      action: allow
+      reason: "Phase-1 POC: emit goto when provenance _source is 'test'"
+      assert:
+        - template: harbor_action
+          slots:
+            kind: "(sym-cat goto)"
+            target: "node_a"
+
+  - name: rule-halt-on-field
+    salience: 40
+    when:
+      - template: evidence
+        conditions:
+          - slot: field
+            expression: 'equals("phase")'
+    then:
+      action: allow
+      reason: "Phase-1 POC: emit halt"
+      assert:
+        - template: harbor_action
+          slots:
+            kind: "(sym-cat halt)"
+            reason: "done"
+
+  - name: rule-parallel-fanout
+    salience: 30
+    when:
+      - template: evidence
+        conditions:
+          - slot: field
+            expression: 'equals("phase")'
+    then:
+      action: allow
+      reason: "Phase-1 POC: emit parallel fan-out with create$ targets"
+      assert:
+        - template: harbor_action
+          slots:
+            kind: "(sym-cat parallel)"
+            targets: "(create$ a b c)"
+            join: "join_node"
+            strategy: "(sym-cat all)"
+
+  - name: rule-retry-with-backoff
+    salience: 20
+    when:
+      - template: evidence
+        conditions:
+          - slot: field
+            expression: 'equals("phase")'
+    then:
+      action: allow
+      reason: "Phase-1 POC: emit retry"
+      assert:
+        - template: harbor_action
+          slots:
+            kind: "(sym-cat retry)"
+            target: "foo"
+            backoff_ms: "(integer 100)"
+
+  - name: rule-assert-marker
+    salience: 10
+    when:
+      - template: evidence
+        conditions:
+          - slot: field
+            expression: 'equals("phase")'
+    then:
+      action: allow
+      reason: "Phase-1 POC: emit assert-action carrying a JSON-encoded slots payload"
+      assert:
+        - template: harbor_action
+          slots:
+            kind: "(sym-cat assert)"
+            fact: "marker"
+            slots: '{"k":"v"}'

@@ -1,0 +1,44 @@
+# Subset of nautilus/rule-packs/data-routing-hipaa/rules/phi-access-control.yaml
+# Used by tests/integration/test_nautilus_yaml_fit.py to probe the IR-vs-Nautilus
+# portable-subset gap before schema freeze (AC-18.1-4).
+template: phi_source_tag
+
+regulation: "HIPAA"
+regulation_section: "45 CFR 164.312(a)(1)"
+title: "PHI Access Control"
+salience_band: "170-190"
+action: deny
+
+description: >-
+  Denies access to protected health information when the requesting
+  agent lacks proper authorization, role assignment, or valid purpose.
+
+rules:
+  - name: deny-no-authorization
+    salience: 190
+    description: >-
+      Deny access when agent has no valid HIPAA authorization for the
+      requested PHI source.
+    conditions:
+      - field: agent.hipaa_authorization
+        operator: is_not_set
+      - field: source.phi_level
+        operator: in
+        values: [limited, standard, sensitive]
+    denial_reason: >-
+      Agent lacks valid HIPAA authorization. Access to PHI denied.
+
+  - name: deny-invalid-role
+    salience: 185
+    description: >-
+      Deny access when agent role is not in the covered entity's
+      authorized workforce for the requested PHI category.
+    conditions:
+      - field: agent.role
+        operator: not_in
+        values: "{{ source.covered_entity.authorized_roles }}"
+      - field: source.phi_level
+        operator: in
+        values: [standard, sensitive]
+    denial_reason: >-
+      Agent role is not authorized for PHI access.

@@ -1,0 +1,461 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://harbor.dev/schemas/ir-v1-draft7.json",
+  "definitions": {
+    "AssertAction": {
+      "additionalProperties": false,
+      "description": "Assert ``fact`` with ``slots`` (JSON-encoded slot dict in POC).",
+      "properties": {
+        "kind": {
+          "const": "assert",
+          "default": "assert",
+          "title": "Kind",
+          "type": "string"
+        },
+        "fact": {
+          "title": "Fact",
+          "type": "string"
+        },
+        "slots": {
+          "default": "",
+          "title": "Slots",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fact"
+      ],
+      "title": "AssertAction",
+      "type": "object"
+    },
+    "GotoAction": {
+      "additionalProperties": false,
+      "description": "Transition to ``target`` rule/state.",
+      "properties": {
+        "kind": {
+          "const": "goto",
+          "default": "goto",
+          "title": "Kind",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "GotoAction",
+      "type": "object"
+    },
+    "HaltAction": {
+      "additionalProperties": false,
+      "description": "Stop execution; ``reason`` is an operator-facing message.",
+      "properties": {
+        "kind": {
+          "const": "halt",
+          "default": "halt",
+          "title": "Kind",
+          "type": "string"
+        },
+        "reason": {
+          "default": "",
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "title": "HaltAction",
+      "type": "object"
+    },
+    "MigrateBlock": {
+      "additionalProperties": false,
+      "description": "Migration descriptor for graph-hash mismatch on resume (POC: from/to ids).",
+      "properties": {
+        "from_hash": {
+          "title": "From Hash",
+          "type": "string"
+        },
+        "to_hash": {
+          "title": "To Hash",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from_hash",
+        "to_hash"
+      ],
+      "title": "MigrateBlock",
+      "type": "object"
+    },
+    "NodeSpec": {
+      "additionalProperties": false,
+      "description": "Graph node descriptor (POC: id + kind; later tasks add IO and config).",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "title": "NodeSpec",
+      "type": "object"
+    },
+    "PackMount": {
+      "additionalProperties": false,
+      "description": "Bosun rule pack mount entry (POC: id + optional version).",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "PackMount",
+      "type": "object"
+    },
+    "ParallelAction": {
+      "additionalProperties": false,
+      "description": "Fan out to ``targets`` and join under ``strategy`` (all/any/race/quorum).",
+      "properties": {
+        "kind": {
+          "const": "parallel",
+          "default": "parallel",
+          "title": "Kind",
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Targets",
+          "type": "array"
+        },
+        "join": {
+          "default": "",
+          "title": "Join",
+          "type": "string"
+        },
+        "strategy": {
+          "default": "all",
+          "title": "Strategy",
+          "type": "string"
+        }
+      },
+      "required": [
+        "targets"
+      ],
+      "title": "ParallelAction",
+      "type": "object"
+    },
+    "ParallelBlock": {
+      "additionalProperties": false,
+      "description": "Top-level parallel/join declaration (POC: targets + join + strategy).",
+      "properties": {
+        "targets": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Targets",
+          "type": "array"
+        },
+        "join": {
+          "default": "",
+          "title": "Join",
+          "type": "string"
+        },
+        "strategy": {
+          "default": "all",
+          "title": "Strategy",
+          "type": "string"
+        }
+      },
+      "required": [
+        "targets"
+      ],
+      "title": "ParallelBlock",
+      "type": "object"
+    },
+    "RetractAction": {
+      "additionalProperties": false,
+      "description": "Retract facts matching ``pattern``.",
+      "properties": {
+        "kind": {
+          "const": "retract",
+          "default": "retract",
+          "title": "Kind",
+          "type": "string"
+        },
+        "pattern": {
+          "title": "Pattern",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pattern"
+      ],
+      "title": "RetractAction",
+      "type": "object"
+    },
+    "RetryAction": {
+      "additionalProperties": false,
+      "description": "Re-attempt ``target`` after ``backoff_ms`` milliseconds.",
+      "properties": {
+        "kind": {
+          "const": "retry",
+          "default": "retry",
+          "title": "Kind",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        },
+        "backoff_ms": {
+          "default": 0,
+          "title": "Backoff Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "RetryAction",
+      "type": "object"
+    },
+    "RuleSpec": {
+      "additionalProperties": false,
+      "description": "Single rule (POC: id + ``when`` pattern + ``then`` action list).\n\n``then`` is a list of :data:`Action` -- the discriminated union; the\nFR-11 \"no nesting\" constraint is enforced by the type itself (variants\ncannot themselves contain :data:`Action` fields).",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "when": {
+          "default": "",
+          "title": "When",
+          "type": "string"
+        },
+        "then": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "assert": "#/definitions/AssertAction",
+                "goto": "#/definitions/GotoAction",
+                "halt": "#/definitions/HaltAction",
+                "parallel": "#/definitions/ParallelAction",
+                "retract": "#/definitions/RetractAction",
+                "retry": "#/definitions/RetryAction"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/definitions/GotoAction"
+              },
+              {
+                "$ref": "#/definitions/HaltAction"
+              },
+              {
+                "$ref": "#/definitions/ParallelAction"
+              },
+              {
+                "$ref": "#/definitions/RetryAction"
+              },
+              {
+                "$ref": "#/definitions/AssertAction"
+              },
+              {
+                "$ref": "#/definitions/RetractAction"
+              }
+            ]
+          },
+          "title": "Then",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "RuleSpec",
+      "type": "object"
+    },
+    "SkillRef": {
+      "additionalProperties": false,
+      "description": "Reference to a skill by namespaced id.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "SkillRef",
+      "type": "object"
+    },
+    "StoreRef": {
+      "additionalProperties": false,
+      "description": "Reference to a store binding (POC: name + provider id).",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "provider"
+      ],
+      "title": "StoreRef",
+      "type": "object"
+    },
+    "ToolRef": {
+      "additionalProperties": false,
+      "description": "Reference to a tool by namespaced id (POC: bare string id + optional version).",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "ToolRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Top-level IR document (POC skeleton).\n\nRequired fields: ``ir_version``, ``id``, ``nodes``. All other top-level\nsections are optional with sensible empty defaults so a minimal document\n(``IRDocument(ir_version=\"1.0.0\", id=\"run:test\", nodes=[])``) constructs\nwithout further plumbing. Stable-ID validation lands in task 1.28; for\nnow ``id`` is a free-form ``str``.",
+  "properties": {
+    "ir_version": {
+      "title": "Ir Version",
+      "type": "string"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "nodes": {
+      "items": {
+        "$ref": "#/definitions/NodeSpec"
+      },
+      "title": "Nodes",
+      "type": "array"
+    },
+    "rules": {
+      "items": {
+        "$ref": "#/definitions/RuleSpec"
+      },
+      "title": "Rules",
+      "type": "array"
+    },
+    "tools": {
+      "items": {
+        "$ref": "#/definitions/ToolRef"
+      },
+      "title": "Tools",
+      "type": "array"
+    },
+    "skills": {
+      "items": {
+        "$ref": "#/definitions/SkillRef"
+      },
+      "title": "Skills",
+      "type": "array"
+    },
+    "stores": {
+      "items": {
+        "$ref": "#/definitions/StoreRef"
+      },
+      "title": "Stores",
+      "type": "array"
+    },
+    "state_schema": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "State Schema",
+      "type": "object"
+    },
+    "parallel": {
+      "items": {
+        "$ref": "#/definitions/ParallelBlock"
+      },
+      "title": "Parallel",
+      "type": "array"
+    },
+    "governance": {
+      "items": {
+        "$ref": "#/definitions/PackMount"
+      },
+      "title": "Governance",
+      "type": "array"
+    },
+    "migrate": {
+      "items": {
+        "$ref": "#/definitions/MigrateBlock"
+      },
+      "title": "Migrate",
+      "type": "array"
+    }
+  },
+  "required": [
+    "ir_version",
+    "id",
+    "nodes"
+  ],
+  "title": "IRDocument",
+  "type": "object"
+}
