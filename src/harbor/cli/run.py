@@ -38,7 +38,7 @@ from rich.console import Console
 
 from harbor.audit.jsonl import JSONLAuditSink
 from harbor.checkpoint.sqlite import SQLiteCheckpointer
-from harbor.cli._inputs import parse_inputs
+from harbor.cli._inputs import parse_inputs, parse_inputs_for_model
 from harbor.cli._progress import ProgressPrinter
 from harbor.cli._prompts import HITLHandler
 from harbor.cli._summary import SummaryRenderer
@@ -386,7 +386,10 @@ def cmd(
     artifacts_dir = Path(".harbor") / "runs" / run_id
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    initial_values = parse_inputs(inputs or [], ir.state_schema)
+    if ir.state_class is not None:
+        initial_values = parse_inputs_for_model(inputs or [], g.state_schema)
+    else:
+        initial_values = parse_inputs(inputs or [], ir.state_schema)
     initial_state = g.state_schema(**initial_values)
     node_registry = _build_node_registry(ir.nodes)
     run = GraphRun(
