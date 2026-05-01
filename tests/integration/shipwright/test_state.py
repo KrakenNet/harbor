@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import pytest
 
+from harbor.ir import mirrored_fields
 from harbor.skills.shipwright.state import (
     Question,
     SpecSlot,
@@ -55,3 +56,24 @@ def test_state_round_trips_through_pydantic() -> None:
     dumped = s.model_dump()
     reloaded = State.model_validate(dumped)
     assert reloaded == s
+
+
+@pytest.mark.unit
+def test_state_mirrored_fields_match_design_spec() -> None:
+    """The set of Mirror-annotated fields is the contract the gap/edits packs route on.
+
+    See `docs/superpowers/specs/2026-05-01-shipwright-design.md` §6.
+    """
+    resolved = mirrored_fields(State)
+    template_names = {r.template for r in resolved.values()}
+    expected = {
+        "mode",
+        "kind",
+        "slots",
+        "open_questions",
+        "blast_radius",
+        "verifier_results",
+        "locked_tests",
+        "fix_attempts",
+    }
+    assert template_names == expected

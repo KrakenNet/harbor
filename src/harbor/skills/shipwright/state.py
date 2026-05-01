@@ -7,9 +7,10 @@ so the gap-detection and edit-routing packs can route on them.
 
 from __future__ import annotations
 
+import warnings
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from harbor.ir import Mirror
 
@@ -28,12 +29,21 @@ class SpecSlot(BaseModel):
     confidence: float = 1.0
 
 
-class Question(BaseModel):
-    slot: str
-    prompt: str
-    kind: QuestionKind
-    schema: dict[str, Any]
-    origin: QuestionOrigin
+with warnings.catch_warnings():
+    warnings.filterwarnings(
+        "ignore",
+        message='Field name "schema" .* shadows an attribute in parent',
+        category=UserWarning,
+    )
+
+    class Question(BaseModel):
+        model_config = ConfigDict(protected_namespaces=())
+
+        slot: str
+        prompt: str
+        kind: QuestionKind
+        schema: dict[str, Any]
+        origin: QuestionOrigin
 
 
 class VerifierResult(BaseModel):
@@ -52,6 +62,9 @@ class State(BaseModel):
     brief: str | None = None
     target_path: str | None = None
 
+    # Context (--fix path)
+    blast_radius: Annotated[list[str], Mirror()] = Field(default_factory=list)
+
     # Spec accumulation
     slots: Annotated[dict[str, SpecSlot], Mirror()] = Field(default_factory=dict)
     open_questions: Annotated[list[Question], Mirror()] = Field(default_factory=list)
@@ -59,6 +72,7 @@ class State(BaseModel):
 
     # Synthesis
     artifact_files: dict[str, str] = Field(default_factory=dict)
+    locked_tests: Annotated[list[str], Mirror()] = Field(default_factory=list)
 
     # Verification
     verifier_results: Annotated[list[VerifierResult], Mirror()] = Field(default_factory=list)
