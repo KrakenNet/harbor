@@ -26,9 +26,10 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import importlib
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import anyio
 import typer
@@ -124,21 +125,50 @@ _NODE_FACTORIES: dict[str, type[NodeBase]] = {
 }
 
 
+def _resolve_node_factory(kind: str) -> type[NodeBase]:
+    """Map a NodeSpec.kind string to a NodeBase factory.
+
+    Short kinds (`echo`, `halt`, `dspy`) come from the static
+    :data:`_NODE_FACTORIES` table. Any kind containing ``:`` is treated
+    as ``module.path:ClassName`` and imported via :mod:`importlib`. The
+    target must be a :class:`harbor.nodes.base.NodeBase` subclass.
+    """
+    if kind in _NODE_FACTORIES:
+        return _NODE_FACTORIES[kind]
+    if ":" not in kind:
+        raise typer.BadParameter(
+            f"unknown node kind {kind!r}; "
+            f"expected one of {sorted(_NODE_FACTORIES)} or 'module.path:ClassName'"
+        )
+    module_path, _, class_name = kind.partition(":")
+    try:
+        module = importlib.import_module(module_path)
+    except ImportError as e:
+        raise typer.BadParameter(
+            f"cannot import module {module_path!r} for node kind {kind!r}: {e}"
+        ) from e
+    cls: Any = getattr(module, class_name, None)
+    if cls is None:
+        raise typer.BadParameter(
+            f"class {class_name!r} not found in {module_path!r} (kind={kind!r})"
+        )
+    if not isinstance(cls, type) or not issubclass(cls, NodeBase):
+        cls_type_name: str = type(cast("object", cls)).__name__
+        raise typer.BadParameter(
+            f"{kind!r} is not a NodeBase subclass (got {cls_type_name})"
+        )
+    return cls
+
+
 def _build_node_registry(nodes: list[NodeSpec]) -> dict[str, NodeBase]:
     """Map ``node_id -> NodeBase`` for every node in ``nodes``.
 
-    Raises :class:`typer.BadParameter` (renders cleanly to stderr) on unknown
-    ``kind`` values so misconfigured fixtures surface at CLI load time rather
-    than mid-run.
+    Each ``NodeSpec.kind`` is resolved via :func:`_resolve_node_factory`,
+    which supports short kinds and ``module.path:ClassName`` references.
     """
     registry: dict[str, NodeBase] = {}
     for node in nodes:
-        factory = _NODE_FACTORIES.get(node.kind)
-        if factory is None:
-            raise typer.BadParameter(
-                f"unknown node kind {node.kind!r} for node {node.id!r}; "
-                f"POC supports {sorted(_NODE_FACTORIES)}"
-            )
+        factory = _resolve_node_factory(node.kind)
         registry[node.id] = factory()
     return registry
 
