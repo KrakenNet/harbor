@@ -18,7 +18,10 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           python-version: "3.13"
-      - run: uv sync --group dev
+      # All extras + dev group so pyright can resolve every optional
+      # import (pyarrow / sklearn / onnxruntime / etc.) under the
+      # configured ``[tool.pyright] strict`` scope.
+      - run: uv sync --all-extras --group dev
       - run: uv run ruff check src/ tests/
       - run: uv run ruff format --check src/ tests/
       - run: uv run pyright
@@ -41,7 +44,10 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           python-version: ${{ matrix.python-version }}
-      - run: uv sync --group dev
+      # ``--extra stores`` is required because ``harbor.stores._common`` does a
+      # top-level ``import pyarrow``; that module is loaded transitively by
+      # any test that touches harbor.stores or harbor.nodes.retrieval.
+      - run: uv sync --group dev --extra stores
       - run: uv run pytest -m "not slow" --cov=harbor --cov-report=xml -q
       - if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
         uses: codecov/codecov-action@v4
