@@ -29,12 +29,7 @@ from harbor.graph.definition import Graph
 from harbor.ir._models import IRDocument
 
 SHIPWRIGHT_GRAPH = (
-    Path(__file__).resolve().parents[3]
-    / "src"
-    / "harbor"
-    / "skills"
-    / "shipwright"
-    / "graph.yaml"
+    Path(__file__).resolve().parents[3] / "src" / "harbor" / "skills" / "shipwright" / "graph.yaml"
 )
 
 EXPECTED_NODE_IDS = (

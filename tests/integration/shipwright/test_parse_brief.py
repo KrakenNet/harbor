@@ -36,7 +36,5 @@ async def test_parse_brief_returns_typed_slots(monkeypatch: pytest.MonkeyPatch) 
 
 @pytest.mark.integration
 async def test_parse_brief_skips_when_brief_missing() -> None:
-    out = await ParseBrief().execute(
-        State(brief=None), SimpleNamespace(run_id="r-test")
-    )
+    out = await ParseBrief().execute(State(brief=None), SimpleNamespace(run_id="r-test"))
     assert out == {"slots": {}}

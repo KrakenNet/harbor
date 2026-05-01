@@ -29,12 +29,7 @@ from typer.testing import CliRunner
 from harbor.cli import app
 
 SHIPWRIGHT_GRAPH = (
-    Path(__file__).resolve().parents[3]
-    / "src"
-    / "harbor"
-    / "skills"
-    / "shipwright"
-    / "graph.yaml"
+    Path(__file__).resolve().parents[3] / "src" / "harbor" / "skills" / "shipwright" / "graph.yaml"
 )
 
 
@@ -70,10 +65,7 @@ def test_harbor_run_drives_shipwright_with_ollama(
             "--quiet",
             "--no-summary",
             "--inputs",
-            (
-                "brief=a triage graph that classifies SOC alerts into "
-                "{benign, suspicious, critical}"
-            ),
+            ("brief=a triage graph that classifies SOC alerts into {benign, suspicious, critical}"),
         ],
     )
 
@@ -113,6 +105,4 @@ def test_harbor_run_drives_shipwright_with_ollama(
 
     assert isinstance(final_state, dict)
     slots = final_state.get("slots", {})
-    assert isinstance(slots, dict) and slots, (
-        "ParseBrief produced no slots — LLM extraction failed"
-    )
+    assert isinstance(slots, dict) and slots, "ParseBrief produced no slots — LLM extraction failed"

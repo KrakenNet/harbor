@@ -19,8 +19,7 @@ _QUESTION_PROMPTS = {
     "purpose": "What is the one-sentence purpose of this graph?",
     "nodes": "Which nodes should the graph have? (think → act → observe is a fine default)",
     "state_fields": (
-        "What state fields will flow through the graph? "
-        "Which should be Mirror-annotated?"
+        "What state fields will flow through the graph? Which should be Mirror-annotated?"
     ),
     "stores": "Which stores does it need? (vector / graph / doc / memory / fact)",
     "triggers": "Which triggers fire it? (manual / cron / webhook)",

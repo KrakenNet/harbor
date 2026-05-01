@@ -154,9 +154,7 @@ def _resolve_node_factory(kind: str) -> type[NodeBase]:
         )
     if not isinstance(cls, type) or not issubclass(cls, NodeBase):
         cls_type_name: str = type(cast("object", cls)).__name__
-        raise typer.BadParameter(
-            f"{kind!r} is not a NodeBase subclass (got {cls_type_name})"
-        )
+        raise typer.BadParameter(f"{kind!r} is not a NodeBase subclass (got {cls_type_name})")
     return cls
 
 
@@ -173,9 +171,7 @@ def _configure_lm(
     without dragging in dspy at all.
     """
     if (lm_url is None) != (lm_model is None):
-        raise typer.BadParameter(
-            "--lm-url and --lm-model must be specified together (or neither)"
-        )
+        raise typer.BadParameter("--lm-url and --lm-model must be specified together (or neither)")
     if lm_url is None:
         return
     import dspy  # pyright: ignore[reportMissingTypeStubs]
@@ -224,9 +220,7 @@ async def _drive_interactive(
                     await audit_sink.write(ev)
                 if ev.type == "waiting_for_input":
                     if hitl is None:
-                        console.print(
-                            "[red]✗ run paused for HITL but --non-interactive set[/red]"
-                        )
+                        console.print("[red]✗ run paused for HITL but --non-interactive set[/red]")
                         raise typer.Exit(2)
                     await hitl.handle(ev, run)
                 progress.feed(ev)
@@ -429,9 +423,7 @@ def cmd(
             # to the run's initial state so the renderer still has something
             # to dump non-default fields from.
             final_state = initial_state
-        renderer = SummaryRenderer(
-            console, json_mode=summary_json, suppress=no_summary
-        )
+        renderer = SummaryRenderer(console, json_mode=summary_json, suppress=no_summary)
         renderer.render(
             summary=summary,
             final_state=final_state,

@@ -42,9 +42,7 @@ def test_purpose_gap_silent_when_slot_present(engine: Engine) -> None:
     "missing_slot",
     ["purpose", "nodes", "state_fields", "stores", "triggers"],
 )
-def test_each_required_graph_slot_has_a_gap_rule(
-    engine: Engine, missing_slot: str
-) -> None:
+def test_each_required_graph_slot_has_a_gap_rule(engine: Engine, missing_slot: str) -> None:
     engine._env.assert_string('(spec.kind (value "graph"))')  # pyright: ignore[reportPrivateUsage]
     for slot in ("purpose", "nodes", "state_fields", "stores", "triggers"):
         if slot == missing_slot:

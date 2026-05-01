@@ -54,14 +54,28 @@ async def test_handler_collects_required_and_skips_optional() -> None:
         console = Console(file=io.StringIO(), force_terminal=False, width=120)
         handler = HITLHandler(console, session=session)
 
-        event = _waiting([
-            {"slot": "nodes", "kind": "required", "prompt": "Which nodes?",
-             "schema": {"type": "array", "items": {"type": "string"}}},
-            {"slot": "stores", "kind": "required", "prompt": "Which stores?",
-             "schema": {"type": "object"}},
-            {"slot": "csv_delim", "kind": "edge_case", "prompt": "Delimiter?",
-             "schema": {"type": "string"}},
-        ])
+        event = _waiting(
+            [
+                {
+                    "slot": "nodes",
+                    "kind": "required",
+                    "prompt": "Which nodes?",
+                    "schema": {"type": "array", "items": {"type": "string"}},
+                },
+                {
+                    "slot": "stores",
+                    "kind": "required",
+                    "prompt": "Which stores?",
+                    "schema": {"type": "object"},
+                },
+                {
+                    "slot": "csv_delim",
+                    "kind": "edge_case",
+                    "prompt": "Delimiter?",
+                    "schema": {"type": "string"},
+                },
+            ]
+        )
         await handler.handle(event, run)  # type: ignore[arg-type]
 
     assert len(run.captured) == 1
@@ -82,10 +96,16 @@ async def test_handler_reprompts_on_blank_required() -> None:
             Console(file=io.StringIO(), force_terminal=False),
             session=session,
         )
-        event = _waiting([
-            {"slot": "name", "kind": "required", "prompt": "Name?",
-             "schema": {"type": "string"}},
-        ])
+        event = _waiting(
+            [
+                {
+                    "slot": "name",
+                    "kind": "required",
+                    "prompt": "Name?",
+                    "schema": {"type": "string"},
+                },
+            ]
+        )
         await handler.handle(event, run)  # type: ignore[arg-type]
 
     assert run.captured[0]["response"]["slot_answers"] == {"name": "alice"}
@@ -118,10 +138,16 @@ async def test_handler_answer_all_optionals() -> None:
             Console(file=io.StringIO(), force_terminal=False),
             session=session,
         )
-        event = _waiting([
-            {"slot": "csv_delim", "kind": "edge_case", "prompt": "Delim?",
-             "schema": {"type": "string"}},
-        ])
+        event = _waiting(
+            [
+                {
+                    "slot": "csv_delim",
+                    "kind": "edge_case",
+                    "prompt": "Delim?",
+                    "schema": {"type": "string"},
+                },
+            ]
+        )
         await handler.handle(event, run)  # type: ignore[arg-type]
 
     assert run.captured[0]["response"]["slot_answers"] == {"csv_delim": ","}
@@ -138,10 +164,16 @@ async def test_handler_int_reprompts_on_bad_value() -> None:
             Console(file=io.StringIO(), force_terminal=False),
             session=session,
         )
-        event = _waiting([
-            {"slot": "n", "kind": "required", "prompt": "How many?",
-             "schema": {"type": "integer"}},
-        ])
+        event = _waiting(
+            [
+                {
+                    "slot": "n",
+                    "kind": "required",
+                    "prompt": "How many?",
+                    "schema": {"type": "integer"},
+                },
+            ]
+        )
         await handler.handle(event, run)  # type: ignore[arg-type]
 
     assert run.captured[0]["response"]["slot_answers"] == {"n": 42}

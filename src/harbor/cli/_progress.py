@@ -202,16 +202,12 @@ class ProgressPrinter:
             tools = ""
             if n.tool_calls:
                 head = ", ".join(n.tool_calls[:3])
-                tail = (
-                    f" (+{len(n.tool_calls) - 3})" if len(n.tool_calls) > 3 else ""
-                )
+                tail = f" (+{len(n.tool_calls) - 3})" if len(n.tool_calls) > 3 else ""
                 tools = f"   [dim]tool: {head}{tail}[/dim]"
             err = ""
             if n.failed and n.error_message:
                 err = f"  [red]error: {n.error_message}[/red]"
-            self._console.print(
-                f"[{n.step_index:02d}] {n.node_id:<30s} {mark}  {dur}{tools}{err}"
-            )
+            self._console.print(f"[{n.step_index:02d}] {n.node_id:<30s} {mark}  {dur}{tools}{err}")
         self._current = None
 
     @staticmethod

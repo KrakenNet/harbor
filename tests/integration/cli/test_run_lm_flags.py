@@ -20,35 +20,55 @@ def runner() -> CliRunner:
 
 @pytest.mark.integration
 def test_lm_url_without_lm_model_fails(runner: CliRunner, tmp_path: Path) -> None:
-    result = runner.invoke(app, [
-        "run", str(SAMPLE_GRAPH),
-        "--checkpoint", str(tmp_path / "ck.sqlite"),
-        "--lm-url", "http://localhost:11434/v1",
-        "--quiet", "--no-summary",
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            str(SAMPLE_GRAPH),
+            "--checkpoint",
+            str(tmp_path / "ck.sqlite"),
+            "--lm-url",
+            "http://localhost:11434/v1",
+            "--quiet",
+            "--no-summary",
+        ],
+    )
     assert result.exit_code != 0
     assert "must be specified together" in result.output.lower()
 
 
 @pytest.mark.integration
 def test_lm_model_without_lm_url_fails(runner: CliRunner, tmp_path: Path) -> None:
-    result = runner.invoke(app, [
-        "run", str(SAMPLE_GRAPH),
-        "--checkpoint", str(tmp_path / "ck.sqlite"),
-        "--lm-model", "gpt-oss:20b",
-        "--quiet", "--no-summary",
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            str(SAMPLE_GRAPH),
+            "--checkpoint",
+            str(tmp_path / "ck.sqlite"),
+            "--lm-model",
+            "gpt-oss:20b",
+            "--quiet",
+            "--no-summary",
+        ],
+    )
     assert result.exit_code != 0
 
 
 @pytest.mark.integration
 def test_neither_lm_flag_skips_dspy_configure(runner: CliRunner, tmp_path: Path) -> None:
     """Graphs without DSPy nodes work fine without --lm-* flags."""
-    result = runner.invoke(app, [
-        "run", str(SAMPLE_GRAPH),
-        "--checkpoint", str(tmp_path / "ck.sqlite"),
-        "--quiet", "--no-summary",
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            str(SAMPLE_GRAPH),
+            "--checkpoint",
+            str(tmp_path / "ck.sqlite"),
+            "--quiet",
+            "--no-summary",
+        ],
+    )
     assert result.exit_code == 0
 
 
@@ -75,15 +95,25 @@ def test_both_lm_flags_configure_dspy(
     monkeypatch.setattr(dspy, "configure", fake_configure)
     monkeypatch.setattr(dspy, "LM", FakeLM)
 
-    result = runner.invoke(app, [
-        "run", str(SAMPLE_GRAPH),
-        "--checkpoint", str(tmp_path / "ck.sqlite"),
-        "--lm-url", "http://localhost:11434/v1",
-        "--lm-model", "gpt-oss:20b",
-        "--lm-key", "test-key",
-        "--lm-timeout", "30",
-        "--quiet", "--no-summary",
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            str(SAMPLE_GRAPH),
+            "--checkpoint",
+            str(tmp_path / "ck.sqlite"),
+            "--lm-url",
+            "http://localhost:11434/v1",
+            "--lm-model",
+            "gpt-oss:20b",
+            "--lm-key",
+            "test-key",
+            "--lm-timeout",
+            "30",
+            "--quiet",
+            "--no-summary",
+        ],
+    )
 
     # restore (defensive)
     monkeypatch.setattr(dspy, "configure", real_configure)
@@ -116,12 +146,20 @@ def test_lm_key_default_is_placeholder(
     monkeypatch.setattr(dspy, "configure", fake_configure)
     monkeypatch.setattr(dspy, "LM", FakeLM)
 
-    result = runner.invoke(app, [
-        "run", str(SAMPLE_GRAPH),
-        "--checkpoint", str(tmp_path / "ck.sqlite"),
-        "--lm-url", "http://localhost:11434/v1",
-        "--lm-model", "gpt-oss:20b",
-        "--quiet", "--no-summary",
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            str(SAMPLE_GRAPH),
+            "--checkpoint",
+            str(tmp_path / "ck.sqlite"),
+            "--lm-url",
+            "http://localhost:11434/v1",
+            "--lm-model",
+            "gpt-oss:20b",
+            "--quiet",
+            "--no-summary",
+        ],
+    )
     assert result.exit_code == 0, result.output
     assert captured["api_key"] == "placeholder"

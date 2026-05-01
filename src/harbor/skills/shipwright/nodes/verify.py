@@ -108,7 +108,7 @@ class VerifyTests(NodeBase):
                     "-q",
                     "--no-header",
                     "--no-cov",
-                    '--override-ini=addopts=',
+                    "--override-ini=addopts=",
                 ],
                 work,
                 timeout_s=self._timeout_s,

@@ -61,9 +61,7 @@ def parse_inputs(pairs: list[str], state_schema: dict[str, str]) -> dict[str, ob
     return parsed
 
 
-def parse_inputs_for_model(
-    pairs: list[str], model_cls: type[BaseModel]
-) -> dict[str, object]:
+def parse_inputs_for_model(pairs: list[str], model_cls: type[BaseModel]) -> dict[str, object]:
     """Parse ``--inputs`` against a resolved Pydantic ``BaseModel`` subclass.
 
     Used when the IR declares ``state_class`` instead of the primitive

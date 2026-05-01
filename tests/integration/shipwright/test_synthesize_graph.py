@@ -36,9 +36,7 @@ async def test_synthesize_emits_three_files(monkeypatch: pytest.MonkeyPatch) -> 
                 origin="user",
             ),
             "stores": SpecSlot(name="stores", value={"doc": "sqlite:./.docs"}, origin="user"),
-            "triggers": SpecSlot(
-                name="triggers", value=[{"type": "manual"}], origin="user"
-            ),
+            "triggers": SpecSlot(name="triggers", value=[{"type": "manual"}], origin="user"),
         },
     )
 

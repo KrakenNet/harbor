@@ -45,7 +45,9 @@ def _summary(status: str = "done", duration_ms: int = 1234) -> RunSummary:
 
 def _stats() -> ProgressStats:
     return ProgressStats(
-        step_count=3, llm_call_count=1, total_tool_tokens=42,
+        step_count=3,
+        llm_call_count=1,
+        total_tool_tokens=42,
         node_durations_ms={"a": 12, "b": 4200},
     )
 
@@ -84,8 +86,9 @@ def test_verifier_results_rendered(tmp_path: Path) -> None:
         verifier_results=[
             _VerifierResult(kind="static", passed=True, duration_ms=53),
             _VerifierResult(kind="tests", passed=True, duration_ms=3300),
-            _VerifierResult(kind="smoke", passed=False, duration_ms=2400,
-                            findings=[{"msg": "fixtures missing"}]),
+            _VerifierResult(
+                kind="smoke", passed=False, duration_ms=2400, findings=[{"msg": "fixtures missing"}]
+            ),
         ],
     )
     renderer.render(

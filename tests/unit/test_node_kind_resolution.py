@@ -30,9 +30,11 @@ def test_short_kind_still_resolves() -> None:
 def test_module_class_kind_resolves_via_importlib() -> None:
     # Use __name__ so the kind matches whichever module path pytest is using
     # for this file (tests/ has no __init__.py, so the dotted path varies).
-    registry = _build_node_registry([
-        NodeSpec(id="dummy", kind=f"{__name__}:_DummyNode"),
-    ])
+    registry = _build_node_registry(
+        [
+            NodeSpec(id="dummy", kind=f"{__name__}:_DummyNode"),
+        ]
+    )
     assert isinstance(registry["dummy"], _DummyNode)
 
 
@@ -40,9 +42,11 @@ def test_module_class_kind_resolves_via_importlib() -> None:
 def test_module_class_with_dotted_path_resolves() -> None:
     """Confirm fully-qualified module paths work (not just top-level)."""
     # EchoNode is at harbor.nodes.base:EchoNode — works as a sanity check
-    registry = _build_node_registry([
-        NodeSpec(id="e", kind="harbor.nodes.base:EchoNode"),
-    ])
+    registry = _build_node_registry(
+        [
+            NodeSpec(id="e", kind="harbor.nodes.base:EchoNode"),
+        ]
+    )
     assert isinstance(registry["e"], EchoNode)
 
 
@@ -55,22 +59,28 @@ def test_unknown_short_kind_still_raises() -> None:
 @pytest.mark.unit
 def test_module_class_import_failure_raises_typer_error() -> None:
     with pytest.raises(typer.BadParameter, match="cannot import"):
-        _build_node_registry([
-            NodeSpec(id="x", kind="harbor.nonexistent.module:Foo"),
-        ])
+        _build_node_registry(
+            [
+                NodeSpec(id="x", kind="harbor.nonexistent.module:Foo"),
+            ]
+        )
 
 
 @pytest.mark.unit
 def test_module_class_missing_attribute_raises() -> None:
     with pytest.raises(typer.BadParameter, match="not found"):
-        _build_node_registry([
-            NodeSpec(id="x", kind="harbor.nodes.base:NoSuchClass"),
-        ])
+        _build_node_registry(
+            [
+                NodeSpec(id="x", kind="harbor.nodes.base:NoSuchClass"),
+            ]
+        )
 
 
 @pytest.mark.unit
 def test_module_class_not_nodebase_raises() -> None:
     with pytest.raises(typer.BadParameter, match="not a NodeBase"):
-        _build_node_registry([
-            NodeSpec(id="x", kind="builtins:dict"),
-        ])
+        _build_node_registry(
+            [
+                NodeSpec(id="x", kind="builtins:dict"),
+            ]
+        )
