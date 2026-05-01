@@ -1,16 +1,48 @@
 name: release
+
 on:
   push:
     tags: ["v*.*.*"]
-permissions:
-  id-token: write     # PyPI trusted publishing
-  contents: read
+  workflow_dispatch:  # allow manual re-runs without re-tagging
+
 jobs:
-  build-publish:
+  build:
+    name: Build sdist + wheel
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
-        with: { python-version: "3.13" }
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.13"
       - run: uv build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: Publish to PyPI (trusted publisher)
+    needs: build
+    runs-on: ubuntu-latest
+    # PyPI's trusted-publisher config typically pins to a GitHub environment
+    # so secrets/approvals can gate the publish. Configure on PyPI:
+    #   https://pypi.org/manage/project/stargraph/settings/publishing/
+    # with: owner=KrakenNet, repo=harbor, workflow=release.yml, environment=pypi.
+    # The OIDC handshake fails (and the action falls back to looking for a
+    # token) if any of those four don't match the run's GITHUB_* claims.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/stargraph
+    permissions:
+      id-token: write   # OIDC token for trusted publishing
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          attestations: true
+          # No `password:` — action defaults to OIDC trusted publishing.
