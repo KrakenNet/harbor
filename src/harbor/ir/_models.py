@@ -296,6 +296,11 @@ class IRDocument(IRBase):
     skills: list[SkillRef] = Field(default_factory=list[SkillRef])
     stores: list[StoreRef] = Field(default_factory=list[StoreRef])
     state_schema: dict[str, str] = Field(default_factory=dict[str, str])
+    # Optional escape hatch: declare an existing Pydantic BaseModel subclass via
+    # ``module.path:ClassName`` instead of the flat primitive map. Mutually
+    # exclusive with a non-empty ``state_schema``. Resolved at Graph construction
+    # (not in IR validation) so the IR stays import-free.
+    state_class: str | None = None
     parallel: list[ParallelBlock] = Field(default_factory=list[ParallelBlock])
     governance: list[PackMount] = Field(default_factory=list[PackMount])
     migrate: list[MigrateBlock] = Field(default_factory=list[MigrateBlock])

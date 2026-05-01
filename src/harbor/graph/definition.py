@@ -30,6 +30,7 @@ falling back to ``Any`` (FR-6 force-loud).
 
 from __future__ import annotations
 
+import importlib
 import sys
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -58,6 +59,55 @@ _TYPE_MAP: dict[str, type[Any]] = {
     "bool": bool,
     "bytes": bytes,
 }
+
+
+def _resolve_state_class(state_class_ref: str) -> type[BaseModel]:
+    """Import a Pydantic BaseModel subclass declared as ``module.path:ClassName``."""
+    if ":" not in state_class_ref:
+        raise ValidationError(
+            "Invalid state_class format",
+            path="/state_class",
+            expected="'module.path:ClassName'",
+            actual=state_class_ref,
+            hint="separate module path and class name with a colon",
+        )
+    module_path, _, class_name = state_class_ref.partition(":")
+    try:
+        module = importlib.import_module(module_path)
+    except ImportError as e:
+        raise ValidationError(
+            "Cannot import state_class module",
+            path="/state_class",
+            expected=f"importable module {module_path!r}",
+            actual=str(e),
+            hint="check the module path; may need to install the package",
+        ) from e
+    raw: object = getattr(module, class_name, None)
+    if raw is None:
+        raise ValidationError(
+            "state_class symbol not found",
+            path="/state_class",
+            expected=f"{class_name!r} attribute on {module_path!r}",
+            actual="missing",
+            hint="verify the class is defined and exported",
+        )
+    if not isinstance(raw, type):
+        raise ValidationError(
+            "state_class is not a Pydantic BaseModel",
+            path="/state_class",
+            expected="subclass of pydantic.BaseModel",
+            actual=type(raw).__name__,
+            hint="state_class must point at a class inheriting from BaseModel",
+        )
+    if not issubclass(raw, BaseModel):
+        raise ValidationError(
+            "state_class is not a Pydantic BaseModel",
+            path="/state_class",
+            expected="subclass of pydantic.BaseModel",
+            actual=raw.__name__,
+            hint="state_class must point at a class inheriting from BaseModel",
+        )
+    return raw
 
 
 def _compile_state_schema(
@@ -292,7 +342,20 @@ class Graph:
 
         # Step 2: compile the IR's ``state_schema`` placeholder into a real
         # Pydantic model. See module docstring for the type-name policy.
-        self.state_schema = _compile_state_schema(ir.state_schema, graph_id=ir.id)
+        # When ``ir.state_class`` is set, import that BaseModel subclass instead;
+        # the two are mutually exclusive.
+        if ir.state_class is not None:
+            if ir.state_schema:
+                raise ValidationError(
+                    "state_class and state_schema are mutually exclusive",
+                    path="/state_class",
+                    expected="exactly one of state_class or non-empty state_schema",
+                    actual="both set",
+                    hint="remove state_schema entries when using state_class",
+                )
+            self.state_schema = _resolve_state_class(ir.state_class)
+        else:
+            self.state_schema = _compile_state_schema(ir.state_schema, graph_id=ir.id)
 
         # Step 2b: FR-11 compile-time check -- refuse graphs with un-merged
         # parallel writes (design §3.6.3, LangGraph InvalidUpdateError analogue).
