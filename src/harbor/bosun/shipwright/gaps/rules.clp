@@ -52,3 +52,24 @@
   =>
   (assert (spec_gap (kind "required") (slot "triggers")
             (reason "declare manual + any cron/webhook triggers"))))
+
+; --- cross-cutting --------------------------------------------------------
+
+(deftemplate spec.profile (slot value))
+(deftemplate spec.annotated_count (slot value))
+(deftemplate spec.node_missing_side_effects (slot node))
+
+(defrule gap-graph-no-annotated-state
+  (spec.kind (value "graph"))
+  (spec.annotated_count (value 0))
+  =>
+  (assert (spec_gap (kind "edge_case") (slot "annotated_state")
+            (reason "no Mirror-annotated fields — rules will see no state"))))
+
+(defrule gap-cleared-side-effects
+  (spec.kind (value "graph"))
+  (spec.profile (value "cleared"))
+  (spec.node_missing_side_effects (node ?n))
+  =>
+  (assert (spec_gap (kind "required") (slot (str-cat "side_effects:" ?n))
+            (reason "cleared profile requires every node to declare side_effects"))))

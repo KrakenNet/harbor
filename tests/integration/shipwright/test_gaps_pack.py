@@ -53,3 +53,27 @@ def test_each_required_graph_slot_has_a_gap_rule(
     engine._env.run()  # pyright: ignore[reportPrivateUsage]
     matches = _gap_facts_for_slot(engine, missing_slot)
     assert len(matches) == 1, f"no rule fired for missing {missing_slot}"
+
+
+@pytest.mark.integration
+def test_no_annotated_field_emits_edge_case_gap(engine: Engine) -> None:
+    engine._env.assert_string('(spec.kind (value "graph"))')  # pyright: ignore[reportPrivateUsage]
+    for slot in ("purpose", "nodes", "stores", "triggers"):
+        engine._env.assert_string(f'(spec.slot (name "{slot}") (value "x"))')  # pyright: ignore[reportPrivateUsage]
+    engine._env.assert_string('(spec.slot (name "state_fields") (value "[]"))')  # pyright: ignore[reportPrivateUsage]
+    engine._env.assert_string("(spec.annotated_count (value 0))")  # pyright: ignore[reportPrivateUsage]
+    engine._env.run()  # pyright: ignore[reportPrivateUsage]
+    matches = _gap_facts_for_slot(engine, "annotated_state")
+    assert len(matches) == 1
+    assert matches[0]["kind"] == "edge_case"
+
+
+@pytest.mark.integration
+def test_cleared_profile_requires_side_effects(engine: Engine) -> None:
+    engine._env.assert_string('(spec.kind (value "graph"))')  # pyright: ignore[reportPrivateUsage]
+    engine._env.assert_string('(spec.profile (value "cleared"))')  # pyright: ignore[reportPrivateUsage]
+    engine._env.assert_string('(spec.node_missing_side_effects (node "browser_search"))')  # pyright: ignore[reportPrivateUsage]
+    engine._env.run()  # pyright: ignore[reportPrivateUsage]
+    matches = _gap_facts_for_slot(engine, "side_effects:browser_search")
+    assert len(matches) == 1
+    assert matches[0]["kind"] == "required"
