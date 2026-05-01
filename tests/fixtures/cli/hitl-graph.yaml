@@ -1,0 +1,26 @@
+# Minimal HITL fixture for `harbor run` interactive lifecycle tests.
+#
+# Two echo nodes (``pre`` -> ``post``) with one rule that fires after
+# ``pre`` produces output, emitting an ``InterruptAction`` (HITL pause)
+# followed by a ``GotoAction`` to ``post``. Consumed by Task 5 (HITL
+# handler tests) and Task 7 (interactive lifecycle tests).
+ir_version: "1.0.0"
+id: "graph:cli-hitl-fixture"
+nodes:
+  - id: pre
+    kind: echo
+  - id: post
+    kind: echo
+state_schema:
+  message: str
+  reply: str
+rules:
+  - id: ask-after-pre
+    when: "?n <- (node-id (id pre))"
+    then:
+      - kind: interrupt
+        prompt: "What should I reply?"
+        interrupt_payload:
+          example_question: "What is your favorite color?"
+      - kind: goto
+        target: post

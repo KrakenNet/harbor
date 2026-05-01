@@ -25,6 +25,7 @@ classifiers = [
 dependencies = [
     "pydantic>=2.9",
     "pluggy>=1.5",
+    "prompt-toolkit>=3.0.50",
     "fathom-rules>=0.3.1",
     "jsonschema>=4.21",
     "pyyaml>=6.0",
@@ -51,9 +52,9 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-# nautilus-rkm is not on PyPI; resolve from the sibling worktree path.
-# Path is relative to this pyproject.toml (in .worktrees/harbor-engine/).
-nautilus-rkm = { path = "../../nautilus", editable = false }
+# nautilus-rkm is not on PyPI; resolve from the sibling leagues/ path.
+# Path is relative to this pyproject.toml at leagues/harbor/.
+nautilus-rkm = { path = "../nautilus", editable = false }
 
 [project.optional-dependencies]
 ml = [

@@ -15,28 +15,32 @@ IR node), and prints the per-rule firing trace. No node executes; no
 file is written; exit is ``0`` on a clean simulation and non-zero on
 any :class:`SimulationError` (e.g. fixture-coverage violation).
 
-Remaining Phase-3 deferrals:
-
-* ``--postgres <dsn>`` is deferred; only SQLite is wired.
-* The node registry is keyed off :attr:`NodeSpec.kind` and accepts the two
-  POC kinds in ``tests/fixtures/sample-graph.yaml`` (``echo``, ``halt``);
-  unknown kinds raise loudly so misconfigured fixtures fail fast (FR-6).
-
-Exit code is ``0`` on terminal status ``done`` and non-zero otherwise.
+Interactive mode (Plan 1):
+``--inputs key=value`` seeds typed initial state; live progress is rendered
+via :class:`ProgressPrinter`; ``WaitingForInputEvent`` events are resolved
+by :class:`HITLHandler` (or fail under ``--non-interactive``); the
+end-of-run :class:`SummaryRenderer` prints status + writes artifacts.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
 
+import anyio
 import typer
 import yaml
+from rich.console import Console
 
 from harbor.audit.jsonl import JSONLAuditSink
 from harbor.checkpoint.sqlite import SQLiteCheckpointer
+from harbor.cli._inputs import parse_inputs
+from harbor.cli._progress import ProgressPrinter
+from harbor.cli._prompts import HITLHandler
+from harbor.cli._summary import SummaryRenderer
 from harbor.graph import Graph, GraphRun
 from harbor.ir import IRDocument
 from harbor.ir._ids import new_run_id
@@ -46,6 +50,7 @@ from harbor.runtime.events import ToolCallEvent, ToolResultEvent
 if TYPE_CHECKING:
     from pydantic import BaseModel
 
+    from harbor.checkpoint.protocol import RunSummary
     from harbor.ir._models import NodeSpec
 
 __all__ = ["cmd"]
@@ -138,40 +143,44 @@ def _build_node_registry(nodes: list[NodeSpec]) -> dict[str, NodeBase]:
     return registry
 
 
-async def _drive(
+async def _drive_interactive(
     run: GraphRun,
     audit_sink: JSONLAuditSink | None,
-) -> str:
-    """Drive ``run`` to completion, optionally tee'ing bus events to JSONL.
+    progress: ProgressPrinter,
+    hitl: HITLHandler | None,
+    console: Console,
+) -> RunSummary:
+    """Tee bus events to: audit_sink (jsonl), progress (stdout), hitl (input prompts).
 
-    The loop publishes :class:`~harbor.runtime.events.Event` records via
-    :attr:`GraphRun.bus`; when ``audit_sink`` is non-``None`` we drain those
-    records concurrently and write each as one JSONL line. The bus is closed
-    after the loop returns so the reader unblocks and exits cleanly.
+    Returns the :class:`RunSummary` produced by :meth:`GraphRun.start`.
     """
-    if audit_sink is None:
-        summary = await run.start()
-        return summary.status
-
-    import contextlib
-
-    import anyio
+    summary_holder: dict[str, Any] = {}
 
     async def _reader() -> None:
         with contextlib.suppress(anyio.EndOfStream, anyio.ClosedResourceError):
             while True:
-                ev = await run.bus.receive()
-                await audit_sink.write(ev)
+                ev: Any = await run.bus.receive()
+                if audit_sink is not None:
+                    await audit_sink.write(ev)
+                if ev.type == "waiting_for_input":
+                    if hitl is None:
+                        console.print(
+                            "[red]✗ run paused for HITL but --non-interactive set[/red]"
+                        )
+                        raise typer.Exit(2)
+                    await hitl.handle(ev, run)
+                progress.feed(ev)
+                if ev.type == "result":
+                    progress.finalize(ev.ts)
+                    return
 
-    status = "failed"
     async with anyio.create_task_group() as tg:
         tg.start_soon(_reader)
         try:
-            summary = await run.start()
-            status = summary.status
+            summary_holder["summary"] = await run.start()
         finally:
             await run.bus.aclose()
-    return status
+    return summary_holder["summary"]
 
 
 def cmd(
@@ -206,6 +215,37 @@ def cmd(
             help="Print rule-firing trace without executing nodes (FR-8/9).",
         ),
     ] = False,
+    inputs: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--inputs",
+            "-i",
+            help="key=value initial state field (repeatable; key must match IR state_schema)",
+        ),
+    ] = None,
+    quiet: Annotated[
+        bool,
+        typer.Option("--quiet", "-q", help="suppress per-step progress output"),
+    ] = False,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="print tool result payloads inline"),
+    ] = False,
+    no_summary: Annotated[
+        bool,
+        typer.Option("--no-summary", help="skip end-of-run summary block"),
+    ] = False,
+    summary_json: Annotated[
+        bool,
+        typer.Option("--summary-json", help="emit summary as JSON instead of text"),
+    ] = False,
+    non_interactive: Annotated[
+        bool,
+        typer.Option(
+            "--non-interactive",
+            help="fail on awaiting-input instead of prompting",
+        ),
+    ] = False,
 ) -> None:
     """Run a Harbor graph end-to-end (FR-8 POC).
 
@@ -217,6 +257,9 @@ def cmd(
     against synthetic zero-value fixtures and prints the rule-firing
     trace. No checkpoint or log file is touched in this mode.
     """
+    if quiet and verbose:
+        raise typer.BadParameter("--quiet and --verbose are mutually exclusive")
+
     ir_dict = yaml.safe_load(graph.read_text(encoding="utf-8"))
     ir = IRDocument.model_validate(ir_dict)
 
@@ -239,6 +282,8 @@ def cmd(
             )
         return
 
+    run_id = new_run_id()
+
     ckpt_path = checkpoint or Path(".harbor") / "run.sqlite"
     ckpt_path.parent.mkdir(parents=True, exist_ok=True)
     checkpointer = SQLiteCheckpointer(ckpt_path)
@@ -248,34 +293,64 @@ def cmd(
         log_file.parent.mkdir(parents=True, exist_ok=True)
         audit_sink = JSONLAuditSink(log_file)
 
-    # POC initial state: zero-value per declared field. The compiled state
-    # schema (``Graph._compile_state_schema``) marks every field required, so
-    # we cannot just call ``state_schema()`` -- we synthesize the per-type
-    # zero value matching the IR ``state_schema`` dict. Phase 2 grows a
-    # ``--state-file`` option for caller-supplied initial values.
-    zero_by_type: dict[str, object] = {"str": "", "int": 0, "bool": False, "bytes": b""}
-    initial_values = {name: zero_by_type[t] for name, t in ir.state_schema.items()}
+    artifacts_dir = Path(".harbor") / "runs" / run_id
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    initial_values = parse_inputs(inputs or [], ir.state_schema)
     initial_state = g.state_schema(**initial_values)
     node_registry = _build_node_registry(ir.nodes)
     run = GraphRun(
-        run_id=new_run_id(),
+        run_id=run_id,
         graph=g,
         initial_state=initial_state,
         node_registry=node_registry,
         checkpointer=checkpointer,
     )
 
-    async def _bootstrap_and_drive() -> str:
+    console = Console()
+    progress = ProgressPrinter(console, quiet=quiet, verbose=verbose)
+    hitl: HITLHandler | None = None if non_interactive else HITLHandler(console)
+
+    async def _bootstrap_and_drive() -> RunSummary:
         await checkpointer.bootstrap()
         try:
-            return await _drive(run, audit_sink)
+            return await _drive_interactive(run, audit_sink, progress, hitl, console)
         finally:
             await checkpointer.close()
             if audit_sink is not None:
                 await audit_sink.close()
 
-    status = asyncio.run(_bootstrap_and_drive())
+    try:
+        summary = asyncio.run(_bootstrap_and_drive())
+    except KeyboardInterrupt:
+        console.print("[yellow]cancelled[/yellow]")
+        raise typer.Exit(code=130) from None
 
-    typer.echo(f"run_id={run.run_id} status={status}")
-    if status != "done":
+    if not no_summary:
+        # Reconstruct final state model from the ResultEvent's snapshot.
+        final_state_dict = progress.final_state_dict() or {}
+        try:
+            final_state = g.state_schema(**final_state_dict)
+        except Exception:
+            # If the schema can't validate (e.g. on failure paths), fall back
+            # to the run's initial state so the renderer still has something
+            # to dump non-default fields from.
+            final_state = initial_state
+        renderer = SummaryRenderer(
+            console, json_mode=summary_json, suppress=no_summary
+        )
+        renderer.render(
+            summary=summary,
+            final_state=final_state,
+            stats=progress.stats(),
+            artifacts_dir=artifacts_dir,
+            run_id=run.run_id,
+            checkpoint=ckpt_path,
+        )
+
+    # Stable single-line marker, last line of stdout — downstream parsers
+    # (test_cli_inspect, test_counterfactual_e2e) split on this.
+    typer.echo(f"run_id={run.run_id} status={summary.status}")
+
+    if summary.status != "done":
         raise typer.Exit(code=1)
