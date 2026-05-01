@@ -7,7 +7,7 @@ auditable, replayable graphs. Transitions between nodes are decided by
 [Fathom](https://github.com/KrakenNet/fathom) (a CLIPS rules engine) over
 provenance-typed facts — not by an LLM playing router.
 
-> **Status:** v0.2.0 — Alpha. Public API is unstable until v1.0.
+> **Status:** v0.2.2 — Alpha. Public API is unstable until v1.0.
 > Built for environments where auditability, determinism, and provenance matter
 > more than ecosystem size (DoD, regulated, air-gapped, cleared workloads).
 
@@ -20,7 +20,7 @@ provenance-typed facts — not by an LLM playing router.
 > rules — not LLMs — decide what happens between tools.
 
 In most agent frameworks the LLM is both the worker and the router: it does the
-thinking *and* picks the next step. That is fine for demos and brittle in
+thinking _and_ picks the next step. That is fine for demos and brittle in
 production. Harbor splits the job. Nodes do work (LLM calls, ML inference, tool
 invocations, retrieval). Rules decide what happens next. The decision layer is
 inspectable, versioned, replayable, and free of stochastic drift.
@@ -83,9 +83,9 @@ when confidence is low:
 
 ```yaml
 nodes:
-  classify_intent: ml:intent_clf@v3        # XGBoost
-  fallback_llm:    dspy:intent_predict
-  act:             tool:do_thing
+  classify_intent: ml:intent_clf@v3 # XGBoost
+  fallback_llm: dspy:intent_predict
+  act: tool:do_thing
 
 rules:
   - when: { classify_intent.confidence: { lt: 0.7 } }
@@ -113,22 +113,22 @@ diff = harbor.compare(run, alt)
 
 ## Concepts at a glance
 
-| Term | Meaning |
-|---|---|
-| **Graph** | Static blueprint: nodes, state schema, rules, governance. |
-| **Run** | One execution of a graph, addressable by `run_id`, fully resumable. |
-| **Node** | A unit of work: DSPy module, ML model, tool call, retrieval, sub-graph. |
-| **State** | The Pydantic-typed bundle of values flowing through a run. |
-| **Fact** | A CLIPS tuple — mirrored from annotated state, emitted by the runtime, or asserted by rules. |
-| **Rule** | A Fathom production. Matches facts, emits a routing action (`goto`, `parallel`, `halt`). |
-| **Pack** | A versioned named collection of rules — mounted onto a graph declaratively. |
-| **Skill** | A bundle of tools, optional sub-graph, optional prompt fragment. The unit of capability composition. |
-| **Plugin** | A pip-installable package shipping skills, tools, nodes, or stores via entry points. |
-| **Store** | The data tier abstraction (vector/graph/doc/memory/fact); concrete impls are Providers. |
-| **Checkpoint** | Per-transition snapshot: state, facts, last node, next action, graph hash. |
+| Term           | Meaning                                                                                              |
+| -------------- | ---------------------------------------------------------------------------------------------------- |
+| **Graph**      | Static blueprint: nodes, state schema, rules, governance.                                            |
+| **Run**        | One execution of a graph, addressable by `run_id`, fully resumable.                                  |
+| **Node**       | A unit of work: DSPy module, ML model, tool call, retrieval, sub-graph.                              |
+| **State**      | The Pydantic-typed bundle of values flowing through a run.                                           |
+| **Fact**       | A CLIPS tuple — mirrored from annotated state, emitted by the runtime, or asserted by rules.         |
+| **Rule**       | A Fathom production. Matches facts, emits a routing action (`goto`, `parallel`, `halt`).             |
+| **Pack**       | A versioned named collection of rules — mounted onto a graph declaratively.                          |
+| **Skill**      | A bundle of tools, optional sub-graph, optional prompt fragment. The unit of capability composition. |
+| **Plugin**     | A pip-installable package shipping skills, tools, nodes, or stores via entry points.                 |
+| **Store**      | The data tier abstraction (vector/graph/doc/memory/fact); concrete impls are Providers.              |
+| **Checkpoint** | Per-transition snapshot: state, facts, last node, next action, graph hash.                           |
 
-The full glossary, including disambiguations like *node vs tool* and
-*state vs facts*, lives in
+The full glossary, including disambiguations like _node vs tool_ and
+_state vs facts_, lives in
 [`design-docs/harbor-concepts.md`](./design-docs/harbor-concepts.md).
 
 ## What Harbor is not
