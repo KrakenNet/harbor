@@ -44,10 +44,11 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           python-version: ${{ matrix.python-version }}
-      # ``--extra stores`` is required because ``harbor.stores._common`` does a
-      # top-level ``import pyarrow``; that module is loaded transitively by
-      # any test that touches harbor.stores or harbor.nodes.retrieval.
-      - run: uv sync --group dev --extra stores
+      # ``--all-extras`` so optional deps (pyarrow under ``stores``,
+      # sklearn/joblib under ``ml``, sentence-transformers under
+      # ``skills-rag``) are available for any test module that
+      # imports them at collect time.
+      - run: uv sync --all-extras --group dev
       - run: uv run pytest -m "not slow" --cov=harbor --cov-report=xml -q
       - if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
         uses: codecov/codecov-action@v4
