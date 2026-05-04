@@ -102,7 +102,20 @@ jobs:
         with:
           python-version: "3.13"
       - run: uv sync --group dev
-      - run: uv run pytest -m "engine and not slow" -q
+      # The `engine` marker is reserved for the engine subsystem suite once
+      # those tests are ported; until then the filter resolves to zero tests
+      # and pytest exits 5 ("no tests collected"). Treat exit 5 as success
+      # so this gate passes through cleanly while still failing on real
+      # collection / runtime errors (exit 1, 2, 3, 4).
+      - run: |
+          set +e
+          uv run pytest -m "engine and not slow" -q
+          rc=$?
+          if [ "$rc" -eq 5 ]; then
+            echo "::notice::pytest exit 5 (no tests collected for 'engine and not slow') -- treating as pass"
+            exit 0
+          fi
+          exit "$rc"
 
   knowledge-test:
     # Knowledge-stack suite filtered by `knowledge` marker (FR-12, NFR-4).
