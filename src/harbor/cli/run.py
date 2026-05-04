@@ -26,9 +26,10 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import importlib
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import anyio
 import typer
@@ -37,7 +38,7 @@ from rich.console import Console
 
 from harbor.audit.jsonl import JSONLAuditSink
 from harbor.checkpoint.sqlite import SQLiteCheckpointer
-from harbor.cli._inputs import parse_inputs
+from harbor.cli._inputs import parse_inputs, parse_inputs_for_model
 from harbor.cli._progress import ProgressPrinter
 from harbor.cli._prompts import HITLHandler
 from harbor.cli._summary import SummaryRenderer
@@ -124,21 +125,76 @@ _NODE_FACTORIES: dict[str, type[NodeBase]] = {
 }
 
 
+def _resolve_node_factory(kind: str) -> type[NodeBase]:
+    """Map a NodeSpec.kind string to a NodeBase factory.
+
+    Short kinds (`echo`, `halt`, `dspy`) come from the static
+    :data:`_NODE_FACTORIES` table. Any kind containing ``:`` is treated
+    as ``module.path:ClassName`` and imported via :mod:`importlib`. The
+    target must be a :class:`harbor.nodes.base.NodeBase` subclass.
+    """
+    if kind in _NODE_FACTORIES:
+        return _NODE_FACTORIES[kind]
+    if ":" not in kind:
+        raise typer.BadParameter(
+            f"unknown node kind {kind!r}; "
+            f"expected one of {sorted(_NODE_FACTORIES)} or 'module.path:ClassName'"
+        )
+    module_path, _, class_name = kind.partition(":")
+    try:
+        module = importlib.import_module(module_path)
+    except ImportError as e:
+        raise typer.BadParameter(
+            f"cannot import module {module_path!r} for node kind {kind!r}: {e}"
+        ) from e
+    cls: Any = getattr(module, class_name, None)
+    if cls is None:
+        raise typer.BadParameter(
+            f"class {class_name!r} not found in {module_path!r} (kind={kind!r})"
+        )
+    if not isinstance(cls, type) or not issubclass(cls, NodeBase):
+        cls_type_name: str = type(cast("object", cls)).__name__
+        raise typer.BadParameter(f"{kind!r} is not a NodeBase subclass (got {cls_type_name})")
+    return cls
+
+
+def _configure_lm(
+    lm_url: str | None,
+    lm_model: str | None,
+    lm_key: str,
+    lm_timeout: int,
+) -> None:
+    """Configure dspy.LM if both --lm-url and --lm-model are set.
+
+    Failing-loud if exactly one is set: pairing is mandatory. Skipping the
+    call entirely when both are None lets graphs without DSPy nodes run
+    without dragging in dspy at all.
+    """
+    if (lm_url is None) != (lm_model is None):
+        raise typer.BadParameter("--lm-url and --lm-model must be specified together (or neither)")
+    if lm_url is None:
+        return
+    import dspy  # pyright: ignore[reportMissingTypeStubs]
+
+    dspy.configure(  # pyright: ignore[reportUnknownMemberType]
+        lm=dspy.LM(  # pyright: ignore[reportUnknownMemberType]
+            f"openai/{lm_model}",
+            api_base=lm_url,
+            api_key=lm_key,
+            timeout=lm_timeout,
+        )
+    )
+
+
 def _build_node_registry(nodes: list[NodeSpec]) -> dict[str, NodeBase]:
     """Map ``node_id -> NodeBase`` for every node in ``nodes``.
 
-    Raises :class:`typer.BadParameter` (renders cleanly to stderr) on unknown
-    ``kind`` values so misconfigured fixtures surface at CLI load time rather
-    than mid-run.
+    Each ``NodeSpec.kind`` is resolved via :func:`_resolve_node_factory`,
+    which supports short kinds and ``module.path:ClassName`` references.
     """
     registry: dict[str, NodeBase] = {}
     for node in nodes:
-        factory = _NODE_FACTORIES.get(node.kind)
-        if factory is None:
-            raise typer.BadParameter(
-                f"unknown node kind {node.kind!r} for node {node.id!r}; "
-                f"POC supports {sorted(_NODE_FACTORIES)}"
-            )
+        factory = _resolve_node_factory(node.kind)
         registry[node.id] = factory()
     return registry
 
@@ -164,9 +220,7 @@ async def _drive_interactive(
                     await audit_sink.write(ev)
                 if ev.type == "waiting_for_input":
                     if hitl is None:
-                        console.print(
-                            "[red]✗ run paused for HITL but --non-interactive set[/red]"
-                        )
+                        console.print("[red]✗ run paused for HITL but --non-interactive set[/red]")
                         raise typer.Exit(2)
                     await hitl.handle(ev, run)
                 progress.feed(ev)
@@ -246,6 +300,34 @@ def cmd(
             help="fail on awaiting-input instead of prompting",
         ),
     ] = False,
+    lm_url: Annotated[
+        str | None,
+        typer.Option(
+            "--lm-url",
+            help="LLM endpoint URL for DSPy nodes (OpenAI-compatible). Pair with --lm-model.",
+        ),
+    ] = None,
+    lm_model: Annotated[
+        str | None,
+        typer.Option(
+            "--lm-model",
+            help="LLM model identifier (e.g. gpt-oss:20b). Required if --lm-url is set.",
+        ),
+    ] = None,
+    lm_key: Annotated[
+        str,
+        typer.Option(
+            "--lm-key",
+            help="API key for the LLM endpoint. Defaults to 'placeholder' (works for ollama).",
+        ),
+    ] = "placeholder",
+    lm_timeout: Annotated[
+        int,
+        typer.Option(
+            "--lm-timeout",
+            help="LLM call timeout in seconds.",
+        ),
+    ] = 60,
 ) -> None:
     """Run a Harbor graph end-to-end (FR-8 POC).
 
@@ -259,6 +341,8 @@ def cmd(
     """
     if quiet and verbose:
         raise typer.BadParameter("--quiet and --verbose are mutually exclusive")
+
+    _configure_lm(lm_url, lm_model, lm_key, lm_timeout)
 
     ir_dict = yaml.safe_load(graph.read_text(encoding="utf-8"))
     ir = IRDocument.model_validate(ir_dict)
@@ -296,7 +380,10 @@ def cmd(
     artifacts_dir = Path(".harbor") / "runs" / run_id
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    initial_values = parse_inputs(inputs or [], ir.state_schema)
+    if ir.state_class is not None:
+        initial_values = parse_inputs_for_model(inputs or [], g.state_schema)
+    else:
+        initial_values = parse_inputs(inputs or [], ir.state_schema)
     initial_state = g.state_schema(**initial_values)
     node_registry = _build_node_registry(ir.nodes)
     run = GraphRun(
@@ -336,9 +423,7 @@ def cmd(
             # to the run's initial state so the renderer still has something
             # to dump non-default fields from.
             final_state = initial_state
-        renderer = SummaryRenderer(
-            console, json_mode=summary_json, suppress=no_summary
-        )
+        renderer = SummaryRenderer(console, json_mode=summary_json, suppress=no_summary)
         renderer.render(
             summary=summary,
             final_state=final_state,

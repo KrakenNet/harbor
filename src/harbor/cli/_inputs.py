@@ -3,7 +3,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import typer
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 _ZERO_BY_TYPE: dict[str, object] = {"str": "", "int": 0, "bool": False, "bytes": b""}
 
@@ -53,4 +58,35 @@ def parse_inputs(pairs: list[str], state_schema: dict[str, str]) -> dict[str, ob
                 f"unknown input {key!r}; declared fields: {sorted(state_schema)}"
             )
         parsed[key] = _coerce(value, state_schema[key])
+    return parsed
+
+
+def parse_inputs_for_model(pairs: list[str], model_cls: type[BaseModel]) -> dict[str, object]:
+    """Parse ``--inputs`` against a resolved Pydantic ``BaseModel`` subclass.
+
+    Used when the IR declares ``state_class`` instead of the primitive
+    ``state_schema`` map. Validates that every input key is a model field
+    name; coercion of values is left to Pydantic so rich annotations
+    (``str | None``, ``Literal[...]``, etc.) work without the CLI having
+    to mirror them.
+
+    Args:
+        pairs: ``key=value`` strings from the CLI (--inputs is repeatable).
+        model_cls: The resolved state ``BaseModel`` subclass.
+
+    Returns:
+        ``{field_name: raw_string_value}`` for the keys that were supplied.
+        Pydantic constructs the final model and applies its own coercion.
+    """
+    parsed: dict[str, object] = {}
+    field_names = set(model_cls.model_fields)
+    for pair in pairs:
+        if "=" not in pair:
+            raise typer.BadParameter(f"input must be key=value, got {pair!r}")
+        key, value = pair.split("=", 1)
+        if key not in field_names:
+            raise typer.BadParameter(
+                f"unknown input {key!r}; declared fields: {sorted(field_names)}"
+            )
+        parsed[key] = value
     return parsed

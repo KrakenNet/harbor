@@ -63,9 +63,7 @@ class HITLHandler:
         raw = await self._session.prompt_async("> ")
         await run.respond(response={"answer": raw.strip()}, actor="cli")
 
-    async def _handle_structured(
-        self, questions: list[dict[str, Any]], run: GraphRun
-    ) -> None:
+    async def _handle_structured(self, questions: list[dict[str, Any]], run: GraphRun) -> None:
         required = [q for q in questions if q.get("kind") == "required"]
         optional = [q for q in questions if q.get("kind") != "required"]
 
@@ -80,34 +78,30 @@ class HITLHandler:
                     self._console.print(f"  [cyan]{slot}[/cyan]: {q.get('prompt', '')}")
                     raw = await self._session.prompt_async("  > ")
                     if not raw.strip():
-                        self._console.print(
-                            "  [yellow](required -- please answer)[/yellow]"
-                        )
+                        self._console.print("  [yellow](required -- please answer)[/yellow]")
                         continue
                     try:
                         answers[slot] = _coerce(raw, schema)
                         break
                     except (ValueError, json.JSONDecodeError) as e:
-                        self._console.print(
-                            f"  [red]parse error: {e}; try again[/red]"
-                        )
+                        self._console.print(f"  [red]parse error: {e}; try again[/red]")
 
         if optional:
             self._console.print(f"\n[dim]Optional ({len(optional)}):[/dim]")
             choice = (
-                await self._session.prompt_async(
-                    "  [a] answer all  [s] skip all  [n] one-by-one: "
+                (
+                    await self._session.prompt_async(
+                        "  [a] answer all  [s] skip all  [n] one-by-one: "
+                    )
                 )
-            ).strip().lower()
+                .strip()
+                .lower()
+            )
             if choice in {"a", "n"}:
                 for q in optional:
-                    schema = cast(
-                        "dict[str, Any]", q.get("schema") or {"type": "string"}
-                    )
+                    schema = cast("dict[str, Any]", q.get("schema") or {"type": "string"})
                     slot = str(q["slot"])
-                    self._console.print(
-                        f"  [cyan]{slot}[/cyan]: {q.get('prompt', '')}"
-                    )
+                    self._console.print(f"  [cyan]{slot}[/cyan]: {q.get('prompt', '')}")
                     label = "  > " if choice == "a" else f"  {slot} (blank to skip): "
                     raw = await self._session.prompt_async(label)
                     if not raw.strip():

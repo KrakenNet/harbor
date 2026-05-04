@@ -6,6 +6,7 @@ Finish code-graph
 code-graph/shipwrite TUI
 Web UI
 Implement graph knowledge graphs
+Replace Kuzu with RyuGraph
 
 ## Interactive `harbor run` polish (branch: cli/interactive-run, after commit c091bc8)
 Backup for scheduled job df3d9088 (Tue 2026-05-05 9:17am local, session-only — may not survive restart).

@@ -1,0 +1,22 @@
+name: {{ name }}
+state: ./state.py:State
+
+nodes:
+{%- for n in nodes %}
+  - name: {{ n }}
+    type: dspy:Predict
+{%- endfor %}
+
+stores:
+{%- for k, v in stores.items() %}
+  {{ k }}: {{ v }}
+{%- endfor %}
+
+triggers:
+{%- for t in triggers %}
+  - type: {{ t.type }}
+{%- endfor %}
+
+checkpoints:
+  every: node-exit
+  store: sqlite:./.checkpoints.db

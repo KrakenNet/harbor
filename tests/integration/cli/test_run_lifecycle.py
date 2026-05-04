@@ -35,9 +35,7 @@ def test_simple_run_exits_zero_with_summary(runner: CliRunner, tmp_path: Path) -
 
 
 @pytest.mark.integration
-def test_quiet_no_summary_produces_minimal_output(
-    runner: CliRunner, tmp_path: Path
-) -> None:
+def test_quiet_no_summary_produces_minimal_output(runner: CliRunner, tmp_path: Path) -> None:
     result = runner.invoke(
         app,
         [
@@ -54,9 +52,7 @@ def test_quiet_no_summary_produces_minimal_output(
 
 
 @pytest.mark.integration
-def test_summary_json_emits_parseable_json(
-    runner: CliRunner, tmp_path: Path
-) -> None:
+def test_summary_json_emits_parseable_json(runner: CliRunner, tmp_path: Path) -> None:
     result = runner.invoke(
         app,
         [
@@ -78,9 +74,7 @@ def test_summary_json_emits_parseable_json(
 
 
 @pytest.mark.integration
-def test_quiet_and_verbose_combo_rejected(
-    runner: CliRunner, tmp_path: Path
-) -> None:
+def test_quiet_and_verbose_combo_rejected(runner: CliRunner, tmp_path: Path) -> None:
     result = runner.invoke(
         app,
         [

@@ -18,7 +18,10 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           python-version: "3.13"
-      - run: uv sync --group dev
+      # All extras + dev group so pyright can resolve every optional
+      # import (pyarrow / sklearn / onnxruntime / etc.) under the
+      # configured ``[tool.pyright] strict`` scope.
+      - run: uv sync --all-extras --group dev
       - run: uv run ruff check src/ tests/
       - run: uv run ruff format --check src/ tests/
       - run: uv run pyright
@@ -41,7 +44,11 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           python-version: ${{ matrix.python-version }}
-      - run: uv sync --group dev
+      # ``--all-extras`` so optional deps (pyarrow under ``stores``,
+      # sklearn/joblib under ``ml``, sentence-transformers under
+      # ``skills-rag``) are available for any test module that
+      # imports them at collect time.
+      - run: uv sync --all-extras --group dev
       - run: uv run pytest -m "not slow" --cov=harbor --cov-report=xml -q
       - if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
         uses: codecov/codecov-action@v4
@@ -174,6 +181,10 @@ jobs:
           python-version: "3.13"
       - run: uv sync --all-extras --all-groups
       - run: uv run pytest -q -m "serve" --tb=short
+      # Strict mode comes from ``[tool.pyright] strict = ["src/harbor", "tests"]``
+      # in pyproject.toml. The CLI ``--strict`` flag was removed in pyright;
+      # the path globs we pass are already within the configured strict scope,
+      # so per-file strictness is preserved by config.
       - run: |
           uv run pyright \
             src/harbor/serve \
@@ -183,8 +194,7 @@ jobs:
             src/harbor/nodes/artifacts \
             src/harbor/tools/nautilus \
             src/harbor/artifacts \
-            src/harbor/triggers \
-            --strict
+            src/harbor/triggers
       - run: uv run python scripts/regen_openapi.py
       - run: git diff --exit-code docs/reference/openapi.json
       - run: uv run python scripts/lineage_audit.py --help

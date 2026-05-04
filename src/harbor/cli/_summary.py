@@ -54,12 +54,7 @@ def _fmt_duration(ms: int) -> str:
 def _is_default(value: Any) -> bool:
     """Heuristic: treat empty/zero/false values as default."""
     return (
-        value is None
-        or value == ""
-        or value == []
-        or value == {}
-        or value == 0
-        or value is False
+        value is None or value == "" or value == [] or value == {} or value == 0 or value is False
     )
 
 
@@ -113,9 +108,7 @@ class SummaryRenderer:
         if self._suppress:
             return
 
-        duration_ms = int(
-            (summary.last_step_at - summary.started_at).total_seconds() * 1000
-        )
+        duration_ms = int((summary.last_step_at - summary.started_at).total_seconds() * 1000)
 
         if self._json_mode:
             payload: dict[str, Any] = {
@@ -167,6 +160,4 @@ class SummaryRenderer:
                     rendered = rendered[:57] + "..."
                 self._console.print(f"    [dim]{name}[/dim]: {rendered}")
 
-        self._console.print(
-            f"\n  inspect: harbor inspect {checkpoint} --run-id {run_id}"
-        )
+        self._console.print(f"\n  inspect: harbor inspect {checkpoint} --run-id {run_id}")
