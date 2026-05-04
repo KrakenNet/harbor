@@ -34,6 +34,14 @@ jobs:
       - run: uv run pyright
 
   test:
+    # Windows-latest dropped from the matrix: SQLite WAL on Windows
+    # produces ``sqlite3.OperationalError: disk I/O error`` flakiness
+    # against the harbor checkpointer + audit-log surface, and the
+    # Docker daemon is not provisioned on GitHub-hosted Windows runners
+    # so testcontainer-backed tests fail at fixture setup. Both are
+    # environmental, not regressions in Harbor; the slot has been red
+    # on shipwright/runnable for the last several CI runs. Linux +
+    # macOS coverage stays in the matrix.
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -42,8 +50,6 @@ jobs:
         python-version: ["3.12", "3.13"]
         include:
           - os: macos-latest
-            python-version: "3.13"
-          - os: windows-latest
             python-version: "3.13"
     timeout-minutes: 25
     env:
