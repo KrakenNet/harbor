@@ -4,7 +4,7 @@
 POC implementation: regex-based ban-list scanning. The allow-list is
 implicit -- anything not matching a ban pattern passes. Queries that
 fail :meth:`Linter.check` raise :class:`UnportableCypherError` so a
-single seam guards every Cypher string before it reaches Kuzu or
+single seam guards every Cypher string before it reaches RyuGraph or
 Neo4j 5.
 
 The linter also exposes :meth:`Linter.requires_write`, a keyword scan
@@ -46,7 +46,7 @@ _VARLEN_UNBOUNDED = re.compile(r"\*[^0-9.]")
 
 # Mutating subquery: a CALL { ... } block whose body contains RETURN
 # implies a read-side subquery, but combined with mutation keywords in
-# the outer scope it's still rejected because Kuzu does not support
+# the outer scope it's still rejected because RyuGraph does not support
 # subqueries in our subset.
 _MUTATING_SUBQUERY = re.compile(r"CALL\s*\{[^}]*\bRETURN\b", re.IGNORECASE | re.DOTALL)
 
@@ -64,7 +64,7 @@ class Linter:
     """
 
     def check(self, cypher: str) -> None:
-        """Reject queries that fall outside the Kuzu/Neo4j-5 subset.
+        """Reject queries that fall outside the RyuGraph/Neo4j-5 subset.
 
         Scans ban-list first, then variable-length unbounded paths, then
         mutating subqueries. Raises :class:`UnportableCypherError` with

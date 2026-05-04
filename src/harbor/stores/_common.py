@@ -19,7 +19,6 @@ import sys
 from pathlib import Path  # noqa: TC003
 from typing import TYPE_CHECKING, Any, Literal
 
-import pyarrow as pa
 from pydantic import BaseModel, Field
 
 from harbor.errors import IncompatibleEmbeddingHashError, MigrationNotSupported
@@ -201,6 +200,12 @@ async def _write_embed_metadata(  # pyright: ignore[reportUnusedFunction]
     Caller must have verified the table does not already exist; LanceDB
     ``create_table`` raises on duplicate.
     """
+    # pyarrow is a stores-extra dependency (LanceDB / RyuGraph rely on it);
+    # import lazily so engine-only test jobs that don't install the stores
+    # extra can still load the harbor.stores._common module for shared types
+    # like ``StoreHealth`` / ``MigrationPlan``.
+    import pyarrow as pa
+
     meta = _expected_embed_meta(embedder, schema_v)
     schema = pa.schema(
         [pa.field("key", pa.string()), pa.field("value", pa.string())],

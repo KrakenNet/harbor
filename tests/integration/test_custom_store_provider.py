@@ -156,7 +156,7 @@ def test_namespace_conflict_loud_fail() -> None:
     )
     spec_b = StoreSpec(
         name="db.shared",
-        provider="kuzu",
+        provider="ryugraph",
         protocol="graph",
         config_schema={},
         capabilities=[],
@@ -195,7 +195,7 @@ def test_namespace_conflict_via_pluggy_aggregation() -> None:
             return [
                 StoreSpec(
                     name="db.shared",
-                    provider="kuzu",
+                    provider="ryugraph",
                     protocol="graph",
                     config_schema={},
                     capabilities=[],

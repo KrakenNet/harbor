@@ -24,7 +24,7 @@ from harbor.fathom import FathomAdapter
 from harbor.stores.fact import FactPattern
 from harbor.stores.graph import NodeRef
 from harbor.stores.kg_promotion import PromoteTriplesToFacts
-from harbor.stores.kuzu import KuzuGraphStore
+from harbor.stores.ryugraph import RyuGraphStore
 from harbor.stores.sqlite_fact import SQLiteFactStore
 
 if TYPE_CHECKING:
@@ -52,7 +52,7 @@ _FILTER_CYPHER = (
 
 async def test_yaml_action_assert_evidence(tmp_path: Path) -> None:
     """Promotion rule fires once per matched triple and pins a ``harbor.evidence`` fact."""
-    graph_store = KuzuGraphStore(tmp_path / "graph")
+    graph_store = RyuGraphStore(tmp_path / "graph")
     fact_store = SQLiteFactStore(tmp_path / "facts.sqlite")
     await graph_store.bootstrap()
     await fact_store.bootstrap()
@@ -84,12 +84,12 @@ async def test_yaml_action_assert_evidence(tmp_path: Path) -> None:
     assert fact.payload["subject"] == "alice"
     assert fact.payload["predicate"] == "knows"
     assert fact.payload["object"] == "bob"
-    assert fact.payload["source"].startswith("kuzu:")
+    assert fact.payload["source"].startswith("ryugraph:")
 
 
 async def test_provenance_quadruple(tmp_path: Path) -> None:
     """Promoted fact lineage carries (triple_id, rule_id, agent_id, promotion_ts)."""
-    graph_store = KuzuGraphStore(tmp_path / "graph")
+    graph_store = RyuGraphStore(tmp_path / "graph")
     fact_store = SQLiteFactStore(tmp_path / "facts.sqlite")
     await graph_store.bootstrap()
     await fact_store.bootstrap()

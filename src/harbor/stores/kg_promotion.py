@@ -16,7 +16,7 @@ Pipeline:
 3. For each row we build a ``{subject, predicate, object, source}`` slot
    bundle and call ``fathom_adapter.assert_with_provenance`` with a
    :class:`ProvenanceBundle` carrying ``origin='graph_promotion'``,
-   ``source=f'kuzu:{path}'``, the caller's ``rule_id`` / ``agent_id``,
+   ``source=f'ryugraph:{path}'``, the caller's ``rule_id`` / ``agent_id``,
    ``row.confidence`` (defaulting to ``Decimal("1.0")`` if absent), and a
    timezone-aware ``datetime.now(UTC)``. Engine assertion is best-effort in
    the POC: an exception in the adapter is logged and skipped so that
@@ -81,7 +81,7 @@ def _row_confidence(row: dict[str, Any]) -> Decimal:
 
 def _graph_source(graph_store: GraphStore) -> str:
     path = getattr(graph_store, "_path", None)
-    return f"kuzu:{path}" if path is not None else "kuzu:unknown"
+    return f"ryugraph:{path}" if path is not None else "ryugraph:unknown"
 
 
 async def PromoteTriplesToFacts(  # noqa: N802 -- spec-mandated PascalCase rule name

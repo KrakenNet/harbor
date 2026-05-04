@@ -22,7 +22,7 @@ from unittest.mock import patch
 import pytest
 
 from harbor.stores.embeddings import FakeEmbedder
-from harbor.stores.kuzu import KuzuGraphStore
+from harbor.stores.ryugraph import RyuGraphStore
 from harbor.stores.lancedb import LanceDBVectorStore
 from harbor.stores.sqlite_doc import SQLiteDocStore
 from harbor.stores.sqlite_fact import SQLiteFactStore
@@ -55,9 +55,9 @@ async def test_lancedb_health_warns_on_nfs(tmp_path: Path) -> None:
 
 async def test_kuzu_health_warns_on_nfs(tmp_path: Path) -> None:
     """Kuzu ``health()`` flags ``smb`` paths via the FR-9 warning."""
-    store = KuzuGraphStore(tmp_path / "graph")
+    store = RyuGraphStore(tmp_path / "graph")
     await store.bootstrap()
-    with patch("harbor.stores.kuzu._detect_fs_type", return_value="smb"):
+    with patch("harbor.stores.ryugraph._detect_fs_type", return_value="smb"):
         health = await store.health()
     assert health.fs_type == "smb"
     assert _has_nfs_warning(health.warnings, "smb")

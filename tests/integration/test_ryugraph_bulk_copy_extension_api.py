@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Kuzu ``bulk_copy`` provider-extension API (FR-11, AC-12.4).
+"""RyuGraph ``bulk_copy`` provider-extension API (FR-11, AC-12.4).
 
-``KuzuGraphStore.bulk_copy(entities_csv=..., edges_csv=...)`` is a
-provider extension that surfaces Kuzu's native ``COPY FROM`` bulk-load
-path. It is intentionally NOT part of the :class:`GraphStore` Protocol:
-bulk-CSV ingest has no portable analogue across every property-graph
-provider, and exposing it on the Protocol would force RyuGraph (or any
-future swap-in) to ship an incompatible shim.
+``RyuGraphStore.bulk_copy(entities_csv=..., edges_csv=...)`` is a
+provider extension that surfaces RyuGraph's native ``COPY FROM``
+bulk-load path. It is intentionally NOT part of the
+:class:`GraphStore` Protocol: bulk-CSV ingest has no portable analogue
+across every property-graph provider, and exposing it on the Protocol
+would force any future provider swap-in to ship an incompatible shim.
 
 These two tests pin the contract:
 
 1. :func:`test_bulk_copy_loads_csvs` -- writing a header-CSV per table
-   and calling :meth:`KuzuGraphStore.bulk_copy` lands the rows in
+   and calling :meth:`RyuGraphStore.bulk_copy` lands the rows in
    ``Entity`` + ``Rel``, reachable through the portable :meth:`query`.
 2. :func:`test_bulk_copy_not_in_graphstore_protocol` -- ``hasattr(
    GraphStore, 'bulk_copy')`` is ``False``; only the provider class
@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from harbor.stores.graph import GraphStore
-from harbor.stores.kuzu import KuzuGraphStore
+from harbor.stores.ryugraph import RyuGraphStore
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -39,14 +39,14 @@ async def test_bulk_copy_loads_csvs(tmp_path: Path) -> None:
     entities_csv = tmp_path / "entities.csv"
     edges_csv = tmp_path / "edges.csv"
     entities_csv.write_text("id,kind\nalice,Person\nbob,Person\ncarol,Person\n")
-    # Kuzu COPY for REL tables expects (from, to, <all-props>) columns
+    # RyuGraph COPY for REL tables expects (from, to, <all-props>) columns
     # in the table's declared order; Rel carries reserved bitemporal
     # ``t_valid`` / ``t_invalid`` columns alongside ``predicate``.
     edges_csv.write_text(
         "from,to,predicate,t_valid,t_invalid\nalice,bob,knows,,\nbob,carol,knows,,\n"
     )
 
-    store = KuzuGraphStore(tmp_path / "graph")
+    store = RyuGraphStore(tmp_path / "graph")
     await store.bootstrap()
     await store.bulk_copy(entities_csv=entities_csv, edges_csv=edges_csv)
 
@@ -65,9 +65,9 @@ async def test_bulk_copy_loads_csvs(tmp_path: Path) -> None:
 def test_bulk_copy_not_in_graphstore_protocol() -> None:
     """``bulk_copy`` is a provider extension, NOT on the Protocol (AC-12.4)."""
     assert not hasattr(GraphStore, "bulk_copy"), (
-        "bulk_copy must stay off GraphStore so RyuGraph swap-in does "
-        "not need a Kuzu-specific shim (FR-11, AC-12.4)."
+        "bulk_copy must stay off GraphStore so future provider swap-in does "
+        "not need a RyuGraph-specific shim (FR-11, AC-12.4)."
     )
-    assert hasattr(KuzuGraphStore, "bulk_copy"), (
-        "KuzuGraphStore must expose bulk_copy as a provider extension."
+    assert hasattr(RyuGraphStore, "bulk_copy"), (
+        "RyuGraphStore must expose bulk_copy as a provider extension."
     )

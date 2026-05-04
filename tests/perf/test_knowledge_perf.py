@@ -47,7 +47,7 @@ from harbor.skills.base import Skill, SkillKind
 from harbor.stores.embeddings import FakeEmbedder
 from harbor.stores.graph import NodeRef
 from harbor.stores.kg_promotion import PromoteTriplesToFacts
-from harbor.stores.kuzu import KuzuGraphStore
+from harbor.stores.ryugraph import RyuGraphStore
 from harbor.stores.lancedb import LanceDBVectorStore
 from harbor.stores.memory import ConsolidationRule, Episode
 from harbor.stores.sqlite_fact import SQLiteFactStore
@@ -171,7 +171,7 @@ def test_cypher_expand_hops2_p95_under_100ms(
     n_edges = 1_000
     n_queries = 100
 
-    store = KuzuGraphStore(tmp_path / "graph")
+    store = RyuGraphStore(tmp_path / "graph")
 
     async def _seed_and_expand() -> list[int]:
         await store.bootstrap()
@@ -509,7 +509,7 @@ def test_kg_promotion_per_triple_p95_under_2ms(
     the calibration line is printed every run.
     """
     n_triples = 200
-    graph_store = KuzuGraphStore(tmp_path / "kg")
+    graph_store = RyuGraphStore(tmp_path / "kg")
     fact_store = SQLiteFactStore(tmp_path / "facts.db")
 
     async def _bench() -> tuple[list[int], int]:

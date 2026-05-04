@@ -70,7 +70,7 @@ from harbor.stores.embeddings import FakeEmbedder
 from harbor.stores.fact import Fact, FactPattern
 from harbor.stores.graph import NodeRef, ResultSet
 from harbor.stores.kg_promotion import PromoteTriplesToFacts
-from harbor.stores.kuzu import KuzuGraphStore
+from harbor.stores.ryugraph import RyuGraphStore
 from harbor.stores.lancedb import LanceDBVectorStore
 from harbor.stores.memory import (
     AddDelta,
@@ -137,7 +137,7 @@ class _RecordingEngine:
 
 
 class _ConfidenceShim:
-    """Wrap a :class:`KuzuGraphStore` so query() rows carry per-triple confidence.
+    """Wrap a :class:`RyuGraphStore` so query() rows carry per-triple confidence.
 
     The Kuzu schema does not store edge-level confidence -- promotion
     rules that need it inject confidence at the row level. This shim is
@@ -148,7 +148,7 @@ class _ConfidenceShim:
 
     def __init__(
         self,
-        inner: KuzuGraphStore,
+        inner: RyuGraphStore,
         confidences: Mapping[tuple[str, str, str], str],
     ) -> None:
         self._inner = inner
@@ -223,7 +223,7 @@ async def test_knowledge_phase5_final_full_stack_counterfactual(tmp_path: Path) 
     # ------------------------------------------------------------------
     embedder = FakeEmbedder()
     vector_store = LanceDBVectorStore(tmp_path / "vectors", embedder)
-    graph_store = KuzuGraphStore(tmp_path / "graph")
+    graph_store = RyuGraphStore(tmp_path / "graph")
     doc_store = SQLiteDocStore(tmp_path / "docs.sqlite")
     memory_store = SQLiteMemoryStore(tmp_path / "memory.sqlite")
     fact_store = SQLiteFactStore(tmp_path / "facts.sqlite")
