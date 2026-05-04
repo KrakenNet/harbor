@@ -51,6 +51,9 @@ def _stub_response(request_id: str = "req-broker-tool-1") -> BrokerResponse:
         scope_restrictions={},
         attestation_token=None,
         duration_ms=11,
+        cap_breached=None,
+        fact_set_hash=None,
+        source_session_signatures={},
     )
 
 

@@ -157,6 +157,18 @@
             ],
             "title": "Attestation Token"
           },
+          "cap_breached": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cap Breached"
+          },
           "data": {
             "additionalProperties": {
               "items": {
@@ -172,6 +184,18 @@
             "title": "Duration Ms",
             "type": "integer"
           },
+          "fact_set_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fact Set Hash"
+          },
           "request_id": {
             "title": "Request Id",
             "type": "string"
@@ -185,6 +209,22 @@
             },
             "title": "Scope Restrictions",
             "type": "object"
+          },
+          "source_session_signatures": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Session Signatures"
           },
           "sources_denied": {
             "items": {

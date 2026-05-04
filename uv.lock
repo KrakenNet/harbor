@@ -1911,7 +1911,7 @@ wheels = [
 
 [[package]]
 name = "nautilus-rkm"
-version = "0.1.4"
+version = "0.1.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiobotocore" },
@@ -1932,9 +1932,9 @@ dependencies = [
     { name = "sse-starlette" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f1/3b/690a34ee9c38673a73abdd3aa7ffdadcfd451b72e4f20ed053ea38f29b10/nautilus_rkm-0.1.4.tar.gz", hash = "sha256:dc0d35e42a43dccc0633a1dce7ef1307cfa9602c46efd83d7a20fc4f3e0c3c26", size = 168505, upload-time = "2026-05-01T23:22:43.574Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/14/06/00af96ce225f13c13119a1dbc3d5aa7787f29101aaafc72f69f9939847d8/nautilus_rkm-0.1.5.tar.gz", hash = "sha256:ef6478cd116f65c7ace0e9ff376b041d436cd455ab37ca95b0129f1583483444", size = 168732, upload-time = "2026-05-04T13:21:10.445Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e5/84/d2f9a2a5a132c9e9bf173b1fc61334bce87dd28209f8779483fc1fe5241a/nautilus_rkm-0.1.4-py3-none-any.whl", hash = "sha256:01022b2f4630138486ed3dfce6586de78f753b60098d45530f215cd8234b3714", size = 212978, upload-time = "2026-05-01T23:22:42.238Z" },
+    { url = "https://files.pythonhosted.org/packages/00/2b/a7bf5ef0f81fd3e25ec8e39b37710c7231f9dc1778b03302eb56b4caf761/nautilus_rkm-0.1.5-py3-none-any.whl", hash = "sha256:f8f8bdd86d0b4be0af7b7618b23b9acc14d1f5d5e552a4e1c5db76de54cfeee9", size = 213209, upload-time = "2026-05-04T13:21:08.781Z" },
 ]
 
 [[package]]
@@ -3471,7 +3471,7 @@ requires-dist = [
     { name = "kuzu", marker = "extra == 'stores'", specifier = "==0.11.3" },
     { name = "lancedb", marker = "extra == 'stores'", specifier = ">=0.30.2,<0.40" },
     { name = "mcp", specifier = ">=1.0" },
-    { name = "nautilus-rkm", specifier = ">=0.1.4" },
+    { name = "nautilus-rkm", specifier = ">=0.1.5" },
     { name = "onnxruntime", marker = "extra == 'ml'", specifier = ">=1.18" },
     { name = "orjson", specifier = ">=3.10" },
     { name = "pluggy", specifier = ">=1.5" },
