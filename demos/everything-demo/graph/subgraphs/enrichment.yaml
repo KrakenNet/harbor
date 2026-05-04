@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# everything-demo enrichment sub-graph.
+#
+# Mounted via the parent's `kind: subgraph` node. Runs inline in the
+# parent's run (shared run_id, branch_id="enrichment"). Three
+# steps fan-out via parallel + RRF-fused via the parent's vector
+# store, then write the result to graph + doc stores.
+
+ir_version: "1.0.0"
+id: "subgraph:enrichment"
+
+nodes:
+  - id: enrichment_start
+    kind: passthrough
+  - id: enrich_kg
+    kind: tool                 # writes (:Ticket)-[:RELATED_TO]->(:Asset) edges via graph store
+  - id: enrich_doc
+    kind: tool                 # appends a Document row to the doc store
+  - id: enrichment_join
+    kind: passthrough
+  - id: enrichment_done_marker
+    kind: passthrough
+
+rules:
+  - id: r-enrichment-fanout
+    when: "?n <- (node-id (id enrichment_start))"
+    then:
+      - kind: parallel
+        targets: [enrich_kg, enrich_doc]
+        join: enrichment_join
+        strategy: all
+  - id: r-enrichment-join-marker
+    when: "?n <- (node-id (id enrichment_join))"
+    then: [{ kind: goto, target: enrichment_done_marker }]
+  - id: r-enrichment-halt
+    when: "?n <- (node-id (id enrichment_done_marker))"
+    then: [{ kind: halt, reason: "enrichment subgraph complete" }]

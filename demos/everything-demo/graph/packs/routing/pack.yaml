@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# everything-demo custom routing pack.
+#
+# A Bosun routing pack: rules that fire on facts asserted by graph
+# rules and produce additional routing decisions. Mounted via the
+# main graph's ``governance:`` block as id ``demo.routing@1.0``.
+#
+# Author / validate via the kraken-plugins fathom plugin commands:
+#   /fathom:new-rule-pack
+#   /fathom:validate
+#   /fathom:test
+
+id: "demo.routing"
+version: "1.0.0"
+flavor: "routing"
+
+api_version: "1"
+harbor_facts_version: "1.0"
+
+rules:
+  - id: route-high-risk-to-hitl
+    when: |
+      (state (risk_class high))
+      (not (response))
+    then:
+      - kind: goto
+        target: hitl_review
+
+  - id: route-low-risk-skip-enrichment
+    when: |
+      (state (risk_class low))
+    then:
+      - kind: assert
+        fact: "skip_enrichment"
+        slots: '{"reason": "low risk auto-route"}'
+
+  - id: route-broker-retry
+    when: |
+      (broker (status transient_error))
+      (state (broker_attempt < 3))
+    then:
+      - kind: retry
+        target: broker_compliance_check
+        backoff_ms: 1000

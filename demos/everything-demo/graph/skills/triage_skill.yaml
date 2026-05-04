@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# everything-demo skill manifest.
+#
+# Declares one Skill (kind=agent) referenced by the main graph's
+# DSPyNode "extract_intent" + "summarize_resolution". The skill
+# bundles the system prompt, signature map, and the two tools the
+# react-style loop is allowed to call.
+#
+# Loaded by Harbor at plugin-load time via the `register_skills`
+# hookspec — see ../../../docs/reference/skills.md.
+
+name: "demo.triage"
+version: "1.0.0"
+kind: "agent"
+description: |
+  Triages a support ticket: extract intent, classify, and emit a
+  one-paragraph resolution summary. Tool-loop is bounded to two calls:
+  one read (lookup_history), one external (notify_user). All other
+  capabilities are denied via the harbor-core capability gate.
+
+tools:
+  - "demo.lookup_history@1.0.0"
+  - "demo.notify_user@1.0.0"
+
+system_prompt: |
+  You are a triage assistant. Read the ticket text. Identify the
+  user's intent. Use lookup_history to fetch prior context. If the
+  resolution requires user notification, call notify_user. Reply with
+  a structured JSON object matching the declared signature.
+
+state_schema_ref: "demos.everything_demo.graph.state:RunState"
+
+requires:
+  - "tools:lookup_history"
+  - "tools:notify_user"
+
+bubble_events: true
