@@ -78,7 +78,10 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       pgbouncer:
-        image: bitnami/pgbouncer:1.23.1
+        # bitnami/pgbouncer:1.23.1 was moved to the bitnamilegacy/* registry
+        # in 2025 when Bitnami restructured Docker Hub hosting; the original
+        # path now returns "manifest unknown" and breaks engine-test.
+        image: bitnamilegacy/pgbouncer:1.23.1
         env:
           POSTGRESQL_HOST: postgres
           POSTGRESQL_PORT: 5432
