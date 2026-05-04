@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Two-engine Cypher portable-subset CI gate (FR-12, AC-9.3, NFR-4).
 
-Runs the same allow-list query corpus against an in-memory ``KuzuGraphStore``
+Runs the same allow-list query corpus against an in-memory ``RyuGraphStore``
 AND a Neo4j 5 testcontainer. For each query we normalise the rows into a
 ``set[tuple]`` and assert byte-identical equality across engines. This is the
 loud-fail two-engine gate that backs the design §3.2 portable-subset
@@ -36,7 +36,7 @@ neo4j_pkg = pytest.importorskip(
 )
 
 from harbor.stores.graph import NodeRef  # noqa: E402
-from harbor.stores.kuzu import KuzuGraphStore  # noqa: E402
+from harbor.stores.ryugraph import RyuGraphStore  # noqa: E402
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -136,7 +136,7 @@ def _normalise_rows(rows: list[dict[str, Any]]) -> set[tuple[tuple[str, Any], ..
     return out
 
 
-async def _seed_kuzu(store: KuzuGraphStore) -> None:
+async def _seed_kuzu(store: RyuGraphStore) -> None:
     await store.bootstrap()
     for s_id, s_kind, p, o_id, o_kind in _TRIPLES:
         await store.add_triple(
@@ -146,7 +146,7 @@ async def _seed_kuzu(store: KuzuGraphStore) -> None:
         )
 
 
-async def _run_kuzu(store: KuzuGraphStore, cypher: str) -> set[tuple[tuple[str, Any], ...]]:
+async def _run_kuzu(store: RyuGraphStore, cypher: str) -> set[tuple[tuple[str, Any], ...]]:
     rs = await store.query(cypher)
     return _normalise_rows(rs.rows)
 
@@ -225,7 +225,7 @@ async def test_corpus_matches_kuzu_and_neo4j(
     handled at module level above.
     """
     del query_id  # only used as the parametrize id
-    kuzu_store = KuzuGraphStore(tmp_path / "kuzu-graph")
+    kuzu_store = RyuGraphStore(tmp_path / "kuzu-graph")
     await _seed_kuzu(kuzu_store)
 
     kuzu_rows = await _run_kuzu(kuzu_store, cypher)

@@ -16,7 +16,7 @@ Three checks:
    ``trail`` so the divergence cannot regress silently.
 2. :func:`test_is_trail_flagged_kuzu_only` -- the docstring flags trail
    filtering as provider-specific / Kuzu-only (no ``is_trail`` flag is
-   exposed by :class:`~harbor.stores.kuzu.KuzuGraphStore`).
+   exposed by :class:`~harbor.stores.ryugraph.RyuGraphStore`).
 3. :func:`test_walk_pattern_returns_potentially_more_results` -- a small
    triangle ``a -> b -> a`` with ``hops=2`` exercises the cycle so the
    walk-semantics expectation (potentially more paths than under trail)
@@ -32,7 +32,7 @@ import pytest
 
 from harbor.stores import graph as graph_module
 from harbor.stores.graph import GraphStore, NodeRef
-from harbor.stores.kuzu import KuzuGraphStore
+from harbor.stores.ryugraph import RyuGraphStore
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -61,13 +61,13 @@ def test_graphstore_docstring_mentions_walk_and_trail() -> None:
     )
 
 
-def test_is_trail_flagged_kuzu_only() -> None:
-    """``is_trail`` filtering is documented Kuzu-only / provider-specific (AC-9.5)."""
-    # KuzuGraphStore deliberately does NOT expose an ``is_trail`` flag --
-    # Kuzu always returns walk semantics, so trail filtering is the
+def test_is_trail_flagged_ryugraph_only() -> None:
+    """``is_trail`` filtering is documented RyuGraph-only / provider-specific (AC-9.5)."""
+    # RyuGraphStore deliberately does NOT expose an ``is_trail`` flag --
+    # RyuGraph always returns walk semantics, so trail filtering is the
     # caller's responsibility (see graph.py Protocol docstring).
-    assert not hasattr(KuzuGraphStore, "is_trail"), (
-        "KuzuGraphStore must not expose an is_trail flag; "
+    assert not hasattr(RyuGraphStore, "is_trail"), (
+        "RyuGraphStore must not expose an is_trail flag; "
         "trail filtering is documented as provider-specific (AC-9.5)."
     )
     assert not hasattr(GraphStore, "is_trail"), (
@@ -77,9 +77,9 @@ def test_is_trail_flagged_kuzu_only() -> None:
 
     docs = _combined_docs().lower()
     # The Protocol docstring must explicitly tag the trail behaviour as
-    # provider-specific / Kuzu-only so callers know not to rely on it.
-    assert "kuzu" in docs and "provider-specific" in docs, (
-        "GraphStore docstring must flag trail filtering as Kuzu-only / "
+    # provider-specific / RyuGraph-only so callers know not to rely on it.
+    assert "ryugraph" in docs and "provider-specific" in docs, (
+        "GraphStore docstring must flag trail filtering as RyuGraph-only / "
         "provider-specific (AC-9.5); found neither phrasing."
     )
 
@@ -93,7 +93,7 @@ async def test_walk_pattern_returns_potentially_more_results(tmp_path: Path) -> 
     the exact count is intentionally provider-dependent under AC-9.5,
     and this test documents the divergence by exercising the cycle.
     """
-    store = KuzuGraphStore(tmp_path / "graph")
+    store = RyuGraphStore(tmp_path / "graph")
     await store.bootstrap()
 
     a = NodeRef(id="a", kind="Entity")

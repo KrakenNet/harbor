@@ -12,6 +12,7 @@ but does not populate the registry by itself.
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,57 @@ from fathom.models import ModuleDefinition, SlotDefinition, SlotType, TemplateDe
 from harbor.fathom import FathomAdapter
 
 FIXTURES_DIR: Path = Path(__file__).parent / "fixtures"
+
+
+# Skip COLLECTION of test modules that import optional providers at module
+# top-level when the matching extra is not installed. Engine-only test jobs
+# (`pytest -m engine`, no `--extra stores` etc.) use this to collect cleanly
+# without forcing the optional-extra wheels into every CI matrix slot.
+# Jobs that install the matching extra pick up the full set normally.
+_STORES_EXTRA_TESTS: tuple[str, ...] = (
+    # Tests that import ryugraph / lancedb / pyarrow at module top-level
+    # (the `stores` extra: `ryugraph`, `lancedb`, `pyarrow`).
+    "integration/test_cypher_subset.py",
+    "integration/test_embed_hash_drift_gate.py",
+    "integration/test_health_warns_on_nfs.py",
+    "integration/test_hybrid_search_rrf.py",
+    "integration/test_kg_fact_promotion_rule.py",
+    "integration/test_kg_promotion_counterfactual.py",
+    "integration/test_knowledge_phase3_ve.py",
+    "integration/test_knowledge_phase5_final.py",
+    "integration/test_knowledge_poc_e2e.py",
+    "integration/test_lancedb_provider.py",
+    "integration/test_lancedb_versioning_checkpoint.py",
+    "integration/test_promotion_one_way.py",
+    "integration/test_rag_reference_skill.py",
+    "integration/test_retrieval_node_parallel_fanout.py",
+    "integration/test_ryugraph_bulk_copy_extension_api.py",
+    "integration/test_ryugraph_provider.py",
+    "integration/test_single_writer_serialization.py",
+    "integration/test_walk_vs_trail_documented.py",
+    "perf/test_knowledge_perf.py",
+    "unit/test_graphstore_expand_bounds.py",
+    "unit/test_ryugraph_singleton_per_path.py",
+    "unit/test_store_protocols_isinstance.py",
+)
+
+_ML_EXTRA_TESTS: tuple[str, ...] = (
+    # Tests that import sklearn / joblib at module top-level
+    # (the `ml` extra: `scikit-learn`, `xgboost`, `onnxruntime`, `skops`,
+    # `joblib`). xgboost / onnx tests use ``pytest.importorskip`` already.
+    "integration/test_mlnode_sklearn.py",
+    "integration/test_training_subgraph_example.py",
+)
+
+collect_ignore_glob: list[str] = []
+if (
+    importlib.util.find_spec("ryugraph") is None
+    or importlib.util.find_spec("lancedb") is None
+    or importlib.util.find_spec("pyarrow") is None
+):
+    collect_ignore_glob.extend(_STORES_EXTRA_TESTS)
+if importlib.util.find_spec("sklearn") is None or importlib.util.find_spec("joblib") is None:
+    collect_ignore_glob.extend(_ML_EXTRA_TESTS)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

@@ -6,7 +6,7 @@ full Phase-1 knowledge stack in one ``async`` test:
 
 1. Bootstraps every store at a ``tmp_path`` root: LanceDB (vectors,
    :class:`~harbor.stores.lancedb.LanceDBVectorStore`), Kuzu (graph,
-   :class:`~harbor.stores.kuzu.KuzuGraphStore`), and three SQLite
+   :class:`~harbor.stores.ryugraph.RyuGraphStore`), and three SQLite
    stores (:class:`~harbor.stores.sqlite_doc.SQLiteDocStore`,
    :class:`~harbor.stores.sqlite_memory.SQLiteMemoryStore`,
    :class:`~harbor.stores.sqlite_fact.SQLiteFactStore`).
@@ -55,7 +55,7 @@ from harbor.stores.embeddings import FakeEmbedder
 from harbor.stores.fact import FactPattern
 from harbor.stores.graph import NodeRef
 from harbor.stores.kg_promotion import PromoteTriplesToFacts
-from harbor.stores.kuzu import KuzuGraphStore
+from harbor.stores.ryugraph import RyuGraphStore
 from harbor.stores.lancedb import LanceDBVectorStore
 from harbor.stores.sqlite_doc import SQLiteDocStore
 from harbor.stores.sqlite_fact import SQLiteFactStore
@@ -117,7 +117,7 @@ async def test_knowledge_poc_e2e_milestone(tmp_path: Path) -> None:
     # ------------------------------------------------------------------
     embedder = FakeEmbedder()
     vector_store = LanceDBVectorStore(tmp_path / "vectors", embedder)
-    graph_store = KuzuGraphStore(tmp_path / "graph")
+    graph_store = RyuGraphStore(tmp_path / "graph")
     doc_store = SQLiteDocStore(tmp_path / "docs.sqlite")
     memory_store = SQLiteMemoryStore(tmp_path / "memory.sqlite")
     fact_store = SQLiteFactStore(tmp_path / "facts.sqlite")

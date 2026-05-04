@@ -5,6 +5,18 @@
 The harbor-knowledge surface — Stores, Skills, retrieval, memory, and
 consolidation built on top of harbor-engine.
 
+### Changed (graph-store backend)
+- Replaced `kuzu==0.11.3` with `ryugraph>=25.9.2,<26` in the `stores`
+  optional-dependency group. RyuGraph is the community fork of Kuzu
+  (predictable-labs/ryugraph) after Kuzu's GitHub repo was archived
+  2025-10-10 following Apple's acquisition of Kuzu Inc. The Python API
+  surface (`Database` / `AsyncConnection` / `QueryResult`) is unchanged
+  across the fork, so the swap was a one-module rename behind the
+  `GraphStore` Protocol — `harbor.stores.kuzu.KuzuGraphStore` is now
+  `harbor.stores.ryugraph.RyuGraphStore`. Provenance source URIs
+  emitted by `PromoteTriplesToFacts` change from `kuzu:<path>` to
+  `ryugraph:<path>` (FR-11, AC-12.1).
+
 ### Added (Plan 1.5 — Shipwright runnable via `harbor run`)
 - IR `state_class: str | None` field — declare a Pydantic `BaseModel`
   subclass via `module.path:ClassName` instead of the primitive

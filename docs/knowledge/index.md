@@ -16,7 +16,7 @@ already enforces.
 
 The Protocol layer mirrors `Checkpointer`'s shape — `bootstrap / health /
 migrate` lifecycle plus per-store CRUD. Three defaults ship in-tree:
-**LanceDB** (vector), **Kuzu** (graph), and a **SQLite trio** (doc / memory /
+**LanceDB** (vector), **RyuGraph** (graph), and a **SQLite trio** (doc / memory /
 fact). Every embedded backend enforces single-writer concurrency through an
 in-process `asyncio.Lock`.
 

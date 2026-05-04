@@ -127,7 +127,7 @@ The five default Providers are all embeddable Python with no outbound network:
 
 - **LanceDB** — local FS only; the SDK never reaches out unless you opt into
   remote tables (Harbor v1 does not).
-- **Kuzu** — single-file embedded; pure local.
+- **RyuGraph** — single-file embedded; pure local.
 - **SQLite trio** — stdlib; pure local.
 
 If you wire a remote backend (S3-backed Lance, Neo4j 5 server), the air-gap
