@@ -41,7 +41,7 @@ from harbor.replay.counterfactual import CounterfactualMutation, derived_graph_h
 from harbor.stores.fact import FactPattern
 from harbor.stores.graph import NodeRef
 from harbor.stores.kg_promotion import PromoteTriplesToFacts
-from harbor.stores.kuzu import KuzuGraphStore
+from harbor.stores.ryugraph import RyuGraphStore
 from harbor.stores.sqlite_fact import SQLiteFactStore
 
 if TYPE_CHECKING:
@@ -72,8 +72,8 @@ class _RecordingEngine:
         self.calls.append((template, slots))
 
 
-async def _seed_kuzu(tmp_path: Path, name: str) -> KuzuGraphStore:
-    store = KuzuGraphStore(tmp_path / name)
+async def _seed_kuzu(tmp_path: Path, name: str) -> RyuGraphStore:
+    store = RyuGraphStore(tmp_path / name)
     await store.bootstrap()
     for s, p, o in _TRIPLES:
         await store.add_triple(

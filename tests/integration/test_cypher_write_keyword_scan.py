@@ -55,8 +55,8 @@ def test_capability_elevated_for_write_query() -> None:
     not by :meth:`RetrievalNode.execute`.
     """
     stores = [
-        StoreRef(name="graph_w", provider="kuzu"),
-        StoreRef(name="graph_r", provider="kuzu"),
+        StoreRef(name="graph_w", provider="ryugraph"),
+        StoreRef(name="graph_r", provider="ryugraph"),
         StoreRef(name="vec", provider="lancedb"),
     ]
 

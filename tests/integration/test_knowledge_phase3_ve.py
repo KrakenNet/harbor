@@ -64,7 +64,7 @@ from harbor.stores.embeddings import FakeEmbedder
 from harbor.stores.fact import FactPattern
 from harbor.stores.graph import NodeRef
 from harbor.stores.kg_promotion import PromoteTriplesToFacts
-from harbor.stores.kuzu import KuzuGraphStore
+from harbor.stores.ryugraph import RyuGraphStore
 from harbor.stores.lancedb import LanceDBVectorStore
 from harbor.stores.memory import (
     AddDelta,
@@ -161,7 +161,7 @@ async def test_knowledge_phase3_ve_full_stack_e2e(tmp_path: Path) -> None:
     # ------------------------------------------------------------------
     embedder = FakeEmbedder()
     vector_store = LanceDBVectorStore(tmp_path / "vectors", embedder)
-    graph_store = KuzuGraphStore(tmp_path / "graph")
+    graph_store = RyuGraphStore(tmp_path / "graph")
     doc_store = SQLiteDocStore(tmp_path / "docs.sqlite")
     memory_store = SQLiteMemoryStore(tmp_path / "memory.sqlite")
     fact_store = SQLiteFactStore(tmp_path / "facts.sqlite")

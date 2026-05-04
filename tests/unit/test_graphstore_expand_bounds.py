@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""``KuzuGraphStore.expand`` hops-bounds validation (AC-12.3, design §3.2).
+"""``RyuGraphStore.expand`` hops-bounds validation (AC-12.3, design §3.2).
 
 Variable-length path traversal in Kuzu cannot be parameterised, so
 the hop bound is interpolated as a Cypher literal. To prevent
@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from harbor.stores.graph import NodeRef
-from harbor.stores.kuzu import KuzuGraphStore
+from harbor.stores.ryugraph import RyuGraphStore
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -32,7 +32,7 @@ pytestmark = [pytest.mark.knowledge, pytest.mark.unit]
 
 async def test_expand_hops_zero_raises(tmp_path: Path) -> None:
     """``hops=0`` rejects with :class:`ValueError`."""
-    store = KuzuGraphStore(tmp_path / "graph")
+    store = RyuGraphStore(tmp_path / "graph")
     await store.bootstrap()
 
     with pytest.raises(ValueError, match="hops"):
@@ -41,7 +41,7 @@ async def test_expand_hops_zero_raises(tmp_path: Path) -> None:
 
 async def test_expand_hops_eleven_raises(tmp_path: Path) -> None:
     """``hops=11`` rejects with :class:`ValueError`."""
-    store = KuzuGraphStore(tmp_path / "graph")
+    store = RyuGraphStore(tmp_path / "graph")
     await store.bootstrap()
 
     with pytest.raises(ValueError, match="hops"):
@@ -50,7 +50,7 @@ async def test_expand_hops_eleven_raises(tmp_path: Path) -> None:
 
 async def test_expand_hops_one_to_ten_accepted(tmp_path: Path) -> None:
     """``hops`` in 1..10 does not trip the bounds-validation ``ValueError``."""
-    store = KuzuGraphStore(tmp_path / "graph")
+    store = RyuGraphStore(tmp_path / "graph")
     await store.bootstrap()
 
     node = NodeRef(id="alice", kind="Person")

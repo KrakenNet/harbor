@@ -24,7 +24,7 @@ from harbor.fathom import FathomAdapter
 from harbor.stores.fact import FactPattern
 from harbor.stores.graph import NodeRef
 from harbor.stores.kg_promotion import PromoteTriplesToFacts
-from harbor.stores.kuzu import KuzuGraphStore
+from harbor.stores.ryugraph import RyuGraphStore
 from harbor.stores.sqlite_fact import SQLiteFactStore
 
 if TYPE_CHECKING:
@@ -50,7 +50,7 @@ _FILTER_CYPHER = (
 )
 
 
-async def _seed_alice_knows_bob(graph_store: KuzuGraphStore) -> None:
+async def _seed_alice_knows_bob(graph_store: RyuGraphStore) -> None:
     await graph_store.add_triple(
         NodeRef(id="alice", kind="Person"),
         "knows",
@@ -60,7 +60,7 @@ async def _seed_alice_knows_bob(graph_store: KuzuGraphStore) -> None:
 
 async def test_triple_delete_does_not_unpin_fact(tmp_path: Path) -> None:
     """Triple deletion in the GraphStore must not retract the pinned Fact."""
-    graph_store = KuzuGraphStore(tmp_path / "graph")
+    graph_store = RyuGraphStore(tmp_path / "graph")
     fact_store = SQLiteFactStore(tmp_path / "facts.sqlite")
     await graph_store.bootstrap()
     await fact_store.bootstrap()
@@ -101,7 +101,7 @@ async def test_triple_delete_does_not_unpin_fact(tmp_path: Path) -> None:
 
 async def test_explicit_retraction_unpins_fact(tmp_path: Path) -> None:
     """Explicit ``FactStore.unpin`` is the supported retraction path."""
-    graph_store = KuzuGraphStore(tmp_path / "graph")
+    graph_store = RyuGraphStore(tmp_path / "graph")
     fact_store = SQLiteFactStore(tmp_path / "facts.sqlite")
     await graph_store.bootstrap()
     await fact_store.bootstrap()

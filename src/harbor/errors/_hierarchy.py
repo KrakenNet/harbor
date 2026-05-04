@@ -159,7 +159,7 @@ class StoreError(HarborRuntimeError):
     (vector / graph / doc / memory / fact) inherits from this so a
     single ``except StoreError`` catches the whole category. Callers
     populate ``context`` with at minimum ``store`` (e.g. ``"lancedb"``,
-    ``"kuzu"``, ``"sqlite"``) and ``path``/``table``/``namespace`` as
+    ``"ryugraph"``, ``"sqlite"``) and ``path``/``table``/``namespace`` as
     relevant.
     """
 
@@ -210,7 +210,7 @@ class MigrationNotSupported(StoreError):  # noqa: N818
     """Raised when a store does not implement the requested migration path.
 
     Per harbor-knowledge design §4.5 / FR-12: a backend may legitimately
-    decline a migration (e.g. Kuzu does not yet support online column
+    decline a migration (e.g. RyuGraph does not yet support online column
     drops). Callers populate ``context`` with ``store``, ``operation``,
     ``reason``.
     """
@@ -220,7 +220,7 @@ class UnportableCypherError(StoreError):
     """Raised when Cypher fails the portable-subset linter.
 
     Per harbor-knowledge design §4.5 / FR-17: queries must run on both
-    Kuzu and Neo4j 5; the linter bans constructs outside the agreed
+    RyuGraph and Neo4j 5; the linter bans constructs outside the agreed
     subset (e.g. unbounded variable-length paths, APOC/GDS calls).
     Callers populate ``context`` with ``cypher``, ``violation``,
     ``rule``.
