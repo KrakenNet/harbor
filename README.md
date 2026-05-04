@@ -39,7 +39,7 @@ inspectable, versioned, replayable, and free of stochastic drift.
   makes deterministic replay free. Re-execute from any step with mutated rule,
   node output, or fact, and diff against the original run.
 - **Pluggable stores behind Protocols.** `VectorStore` (LanceDB),
-  `GraphStore` (Kuzu), `DocStore`/`MemoryStore`/`FactStore` (SQLite). Embedded
+  `GraphStore` (RyuGraph), `DocStore`/`MemoryStore`/`FactStore` (SQLite). Embedded
   by default, swappable for hosted providers.
 - **Boundary-clean state.** Mutate Pydantic state freely inside a node. On
   exit, annotated fields mirror into CLIPS, rules fire, checkpoint persists.
@@ -70,7 +70,7 @@ Nodes:  DSPy │ ML models │ tools │ retrieval │ memory ops
 ```bash
 uv add harbor                          # core
 uv add 'harbor[ml]'                    # + sklearn / xgboost / onnxruntime
-uv add 'harbor[stores]'                # + lancedb / kuzu / pyarrow
+uv add 'harbor[stores]'                # + lancedb / ryugraph / pyarrow
 uv add 'harbor[skills-rag]'            # + sentence-transformers
 ```
 
@@ -135,7 +135,7 @@ _state vs facts_, lives in
 
 - **Not a prompt-optimization framework** — that's DSPy, which Harbor uses.
 - **Not an inference engine** — that's Fathom/CLIPS, which Harbor uses.
-- **Not a vector or graph DB** — Stores wrap real ones (LanceDB, Kuzu, …).
+- **Not a vector or graph DB** — Stores wrap real ones (LanceDB, RyuGraph, …).
 - **Not a workflow UI** — `harbor serve` is headless. UI is a future product.
 - **Not chasing LangGraph or n8n on mindshare.** It competes on correctness,
   inspectability, and ability to run where those tools can't.

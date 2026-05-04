@@ -16,7 +16,7 @@ and assert post-condition row counts on the on-disk store:
 2. :func:`test_sqlite_doc_concurrent_put` -- two
    :meth:`SQLiteDocStore.put` calls at the same path; both docs queryable.
 3. :func:`test_kuzu_concurrent_add_triple` -- two
-   :meth:`KuzuGraphStore.add_triple` calls at the same path; both edges
+   :meth:`RyuGraphStore.add_triple` calls at the same path; both edges
    persisted.
 
 A fourth test pins observability: while a writer is mid-flight,
@@ -35,7 +35,7 @@ import pytest
 from harbor.stores._common import _lock_for  # pyright: ignore[reportPrivateUsage]
 from harbor.stores.embeddings import FakeEmbedder
 from harbor.stores.graph import NodeRef
-from harbor.stores.kuzu import KuzuGraphStore
+from harbor.stores.ryugraph import RyuGraphStore
 from harbor.stores.lancedb import LanceDBVectorStore
 from harbor.stores.sqlite_doc import SQLiteDocStore
 from harbor.stores.vector import Row
@@ -89,9 +89,9 @@ async def test_sqlite_doc_concurrent_put(tmp_path: Path) -> None:
 
 
 async def test_kuzu_concurrent_add_triple(tmp_path: Path) -> None:
-    """Two concurrent :meth:`KuzuGraphStore.add_triple` calls persist both edges."""
+    """Two concurrent :meth:`RyuGraphStore.add_triple` calls persist both edges."""
     path = tmp_path / "graph"
-    store = KuzuGraphStore(path)
+    store = RyuGraphStore(path)
     await store.bootstrap()
 
     await asyncio.gather(

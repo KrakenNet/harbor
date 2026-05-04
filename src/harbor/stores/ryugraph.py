@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
-"""KuzuGraphStore POC (FR-3 / FR-11, design §3.2).
+"""RyuGraphStore POC (FR-3 / FR-11, design §3.2).
 
 Phase-1 reference :class:`harbor.stores.graph.GraphStore` implementation
-backed by Kuzu's native ``kuzu.AsyncConnection``. POC scope:
+backed by RyuGraph's native ``ryugraph.AsyncConnection``. RyuGraph is the
+community fork of Kuzu (predictable-labs/ryugraph) after Kuzu's GitHub
+repository was archived 2025-10-10 following Apple's acquisition of Kuzu
+Inc. The Python API surface (Database / AsyncConnection / QueryResult)
+is unchanged across the fork. POC scope:
 
-- ``bootstrap()`` opens (or creates) a :class:`kuzu.Database` and an
-  :class:`kuzu.AsyncConnection`, then idempotently installs the design
+- ``bootstrap()`` opens (or creates) a :class:`ryugraph.Database` and an
+  :class:`ryugraph.AsyncConnection`, then idempotently installs the design
   §3.2 schema -- one ``Entity`` node table keyed by ``id`` plus one
   ``Rel`` edge table carrying ``predicate`` and reserved bitemporal
   ``t_valid`` / ``t_invalid`` timestamp columns.
@@ -23,9 +27,9 @@ backed by Kuzu's native ``kuzu.AsyncConnection``. POC scope:
 
 Single-writer semantics enforced through
 :func:`harbor.stores._common._lock_for`. A module-level
-``_KUZU_INSTANCES`` registry keyed by resolved path provides
-singleton-per-path :class:`kuzu.Database` reuse so multiple
-``KuzuGraphStore`` handles at the same path share one connection
+``_RYUGRAPH_INSTANCES`` registry keyed by resolved path provides
+singleton-per-path :class:`ryugraph.Database` reuse so multiple
+``RyuGraphStore`` handles at the same path share one connection
 (useful for in-process multi-reader access).
 """
 
@@ -33,7 +37,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-import kuzu
+import ryugraph
 
 from harbor.errors import StoreError
 from harbor.stores._common import (
@@ -52,7 +56,7 @@ if TYPE_CHECKING:
 
     from harbor.stores._common import MigrationPlan
 
-__all__ = ["KuzuGraphStore"]
+__all__ = ["RyuGraphStore"]
 
 
 _SCHEMA_V = 1
@@ -76,15 +80,15 @@ _MERGE_TRIPLE = (
 )
 
 
-# Module-level singleton-per-path registry. Multiple KuzuGraphStore
+# Module-level singleton-per-path registry. Multiple RyuGraphStore
 # instances pointed at the same on-disk path share one Database +
 # AsyncConnection pair so concurrent readers in the same process don't
-# fight Kuzu's exclusive write lock at open time.
-_KUZU_INSTANCES: dict[Path, KuzuGraphStore] = {}
+# fight RyuGraph's exclusive write lock at open time.
+_RYUGRAPH_INSTANCES: dict[Path, RyuGraphStore] = {}
 
 
-class KuzuGraphStore:
-    """POC :class:`GraphStore` backed by ``kuzu.AsyncConnection`` (design §3.2)."""
+class RyuGraphStore:
+    """POC :class:`GraphStore` backed by ``ryugraph.AsyncConnection`` (design §3.2)."""
 
     def __init__(
         self,
@@ -98,11 +102,11 @@ class KuzuGraphStore:
         self._read_only = read_only
         self._version = _SCHEMA_V
         self._linter = Linter()
-        self._db: kuzu.Database | None = None
-        self._conn: kuzu.AsyncConnection | None = None
-        # Cap per-Database virtual address-space request. Kuzu's defaults
+        self._db: ryugraph.Database | None = None
+        self._conn: ryugraph.AsyncConnection | None = None
+        # Cap per-Database virtual address-space request. RyuGraph's defaults
         # are buffer_pool ≈ 80% of RAM and max_db_size = 8 TB; with N
-        # KuzuGraphStore instances per pytest run, that exhausts process
+        # RyuGraphStore instances per pytest run, that exhausts process
         # VA limits as "Buffer manager exception: Mmap for size 8.8T
         # failed". 1 GB max + 256 MB buffer is plenty for POC + tests;
         # production callers can raise both via the constructor.
@@ -158,8 +162,8 @@ class KuzuGraphStore:
         ``MigrationNotSupported`` error every store raises for v1
         unsupported ops.
         """
-        _validate_migration_plan(plan, store="kuzu")
-        msg = "KuzuGraphStore.migrate is not implemented in the POC"
+        _validate_migration_plan(plan, store="ryugraph")
+        msg = "RyuGraphStore.migrate is not implemented in the POC"
         raise NotImplementedError(msg)
 
     # ------------------------------------------------------------------ CRUD
@@ -197,14 +201,14 @@ class KuzuGraphStore:
     # ------------------------------------------------------------------ provider extensions
     #
     # bulk_copy is intentionally OUTSIDE the GraphStore Protocol (FR-11,
-    # AC-12.4): bulk-CSV ingest is Kuzu-specific (Kuzu's native ``COPY
+    # AC-12.4): bulk-CSV ingest is RyuGraph-specific (RyuGraph's native ``COPY
     # FROM`` statement) and does not have a portable analogue across
-    # every property-graph provider. Callers that opt into the Kuzu
-    # provider extension hold a ``KuzuGraphStore`` reference directly;
+    # every property-graph provider. Callers that opt into the RyuGraph
+    # provider extension hold a ``RyuGraphStore`` reference directly;
     # ``GraphStore``-typed callers see only the portable surface.
 
     async def bulk_copy(self, *, entities_csv: Path, edges_csv: Path) -> None:
-        """Bulk-load CSVs into ``Entity`` + ``Rel`` via Kuzu's ``COPY FROM``.
+        """Bulk-load CSVs into ``Entity`` + ``Rel`` via RyuGraph's ``COPY FROM``.
 
         Provider extension (FR-11, AC-12.4): not part of the
         :class:`GraphStore` Protocol. ``entities_csv`` columns must
@@ -278,45 +282,47 @@ class KuzuGraphStore:
         if self._conn is not None:
             return
         key = self._path.resolve() if self._path.exists() else self._path
-        cached = _KUZU_INSTANCES.get(key)
+        cached = _RYUGRAPH_INSTANCES.get(key)
         if cached is not None and cached._conn is not None:
             self._db = cached._db
             self._conn = cached._conn
             return
-        db = kuzu.Database(
+        db = ryugraph.Database(
             str(self._path),
             read_only=self._read_only,
             buffer_pool_size=self._buffer_pool_size,
             max_db_size=self._max_db_size,
         )
-        conn = kuzu.AsyncConnection(db)
+        conn = ryugraph.AsyncConnection(db)
         self._db = db
         self._conn = conn
-        _KUZU_INSTANCES[key] = self
+        _RYUGRAPH_INSTANCES[key] = self
 
-    def _require_conn(self) -> kuzu.AsyncConnection:
+    def _require_conn(self) -> ryugraph.AsyncConnection:
         if self._conn is None:
-            msg = "KuzuGraphStore connection not open; call bootstrap() first"
+            msg = "RyuGraphStore connection not open; call bootstrap() first"
             raise StoreError(msg)
         return self._conn
 
     @staticmethod
     def _first_result(
-        result: kuzu.QueryResult | list[kuzu.QueryResult],
-    ) -> kuzu.QueryResult | None:
+        result: ryugraph.QueryResult | list[ryugraph.QueryResult],
+    ) -> ryugraph.QueryResult | None:
         if isinstance(result, list):
             return result[0] if result else None
         return result
 
     @classmethod
-    def _iter_rows(cls, result: kuzu.QueryResult | list[kuzu.QueryResult]) -> list[Any]:
+    def _iter_rows(cls, result: ryugraph.QueryResult | list[ryugraph.QueryResult]) -> list[Any]:
         target = cls._first_result(result)
         if target is None:
             return []
         return list(target)
 
     @classmethod
-    def _result_to_resultset(cls, result: kuzu.QueryResult | list[kuzu.QueryResult]) -> ResultSet:
+    def _result_to_resultset(
+        cls, result: ryugraph.QueryResult | list[ryugraph.QueryResult]
+    ) -> ResultSet:
         target = cls._first_result(result)
         if target is None:
             return ResultSet()
@@ -329,7 +335,7 @@ class KuzuGraphStore:
         return ResultSet(rows=rows, columns=columns)
 
     @classmethod
-    async def _scalar_count(cls, conn: kuzu.AsyncConnection, cypher: str) -> int | None:
+    async def _scalar_count(cls, conn: ryugraph.AsyncConnection, cypher: str) -> int | None:
         result = await conn.execute(cypher)
         target = cls._first_result(result)
         if target is None:

@@ -14,7 +14,7 @@ from harbor.stores import (
     DocStore,
     FactStore,
     GraphStore,
-    KuzuGraphStore,
+    RyuGraphStore,
     LanceDBVectorStore,
     MemoryStore,
     SQLiteDocStore,
@@ -51,8 +51,8 @@ def test_lancedb_vector_store_isinstance(tmp_path: Path) -> None:
 
 
 def test_kuzu_graph_store_isinstance(tmp_path: Path) -> None:
-    """``KuzuGraphStore`` satisfies the ``GraphStore`` Protocol (AC-1.2)."""
-    store = KuzuGraphStore(tmp_path / "graph")
+    """``RyuGraphStore`` satisfies the ``GraphStore`` Protocol (AC-1.2)."""
+    store = RyuGraphStore(tmp_path / "graph")
     assert isinstance(store, GraphStore)
 
 

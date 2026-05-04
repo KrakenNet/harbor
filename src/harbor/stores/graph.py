@@ -3,8 +3,9 @@
 
 Defines the property-graph storage contract Knowledge layer uses for
 triple writes, Cypher queries, and bounded neighbourhood expansion.
-Providers (KuzuGraphStore, future ryugraph swap) implement
-:class:`GraphStore` structurally; no inheritance required.
+Providers (RyuGraphStore -- the community fork of Kuzu after its
+2025-10-10 archival) implement :class:`GraphStore` structurally; no
+inheritance required.
 
 The Protocol mirrors the :mod:`harbor.checkpoint.protocol` shape --
 ``bootstrap / health / migrate`` lifecycle plus per-store CRUD
@@ -85,10 +86,10 @@ class ResultSet(BaseModel):
 class GraphStore(Protocol):
     """Property-graph storage contract (design §3.2).
 
-    Implementations: :class:`harbor.stores.kuzu.KuzuGraphStore` (native
-    ``kuzu.AsyncConnection``, single-writer multi-reader) lands in a
-    later task. Cypher passed to :meth:`query` must satisfy the portable
-    subset enforced by :mod:`harbor.stores.cypher` -- providers reject
+    Implementations: :class:`harbor.stores.ryugraph.RyuGraphStore`
+    (native ``ryugraph.AsyncConnection``, single-writer multi-reader).
+    Cypher passed to :meth:`query` must satisfy the portable subset
+    enforced by :mod:`harbor.stores.cypher` -- providers reject
     out-of-subset input with ``UnportableCypherError``.
 
     ``expand`` interpolates ``hops`` as a Cypher literal (variable-length
@@ -98,9 +99,9 @@ class GraphStore(Protocol):
     Walk vs trail (AC-9.5): variable-length matches in Harbor's portable
     Cypher subset return *walks* -- vertices and edges may repeat, so the
     same query may return a different number of paths across providers.
-    Kuzu always returns walk semantics (no ``is_trail`` filter; trail
-    filtering is provider-specific and Kuzu-only callers must apply it
-    themselves at the row level). Neo4j 5 Cypher under the same shape
+    RyuGraph always returns walk semantics (no ``is_trail`` filter; trail
+    filtering is provider-specific and RyuGraph-only callers must apply
+    it themselves at the row level). Neo4j 5 Cypher under the same shape
     returns *trails* (edges unique). Callers MUST treat the row count as
     provider-dependent for any pattern that can re-traverse an edge.
     """

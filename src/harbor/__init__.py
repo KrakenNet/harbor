@@ -12,7 +12,7 @@ Public top-level surface (design §2.1, §5.2, task 2.8):
   nodes over the Store quintet (FR-26, design §5).
 * Store Protocols (:class:`VectorStore`, :class:`GraphStore`, :class:`DocStore`,
   :class:`MemoryStore`, :class:`FactStore`) and their default Providers
-  (:class:`LanceDBVectorStore`, :class:`KuzuGraphStore`, :class:`SQLiteDocStore`,
+  (:class:`LanceDBVectorStore`, :class:`RyuGraphStore`, :class:`SQLiteDocStore`,
   :class:`SQLiteMemoryStore`, :class:`SQLiteFactStore`) — design §5.
 * IR helpers (:func:`dumps`, :func:`dumps_canonical`, :func:`loads`, :func:`validate`)
   and schema locators (:func:`schema_path`, :func:`schema_url`) inherited from the
@@ -37,7 +37,7 @@ from .stores import (
     DocStore,
     FactStore,
     GraphStore,
-    KuzuGraphStore,
+    RyuGraphStore,
     LanceDBVectorStore,
     MemoryStore,
     SQLiteDocStore,
@@ -55,7 +55,7 @@ __all__ = [
     "Graph",
     "GraphRun",
     "GraphStore",
-    "KuzuGraphStore",
+    "RyuGraphStore",
     "LanceDBVectorStore",
     "MemoryStore",
     "MemoryWriteNode",

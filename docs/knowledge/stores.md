@@ -10,7 +10,7 @@ migrate` lifecycle on top of CRUD specific to its data model.
 | Protocol | Data model | Default Provider | Backed by |
 |---|---|---|---|
 | `VectorStore` | dense vectors + metadata + FTS | `LanceDBVectorStore` | LanceDB (Lance columnar format) |
-| `GraphStore` | labeled property graph | `KuzuGraphStore` | Kuzu single-file embedded graph DB |
+| `GraphStore` | labeled property graph | `RyuGraphStore` | RyuGraph single-file embedded graph DB (community fork of Kuzu) |
 | `DocStore` | binary / text blobs + metadata | `SQLiteDocStore` | SQLite (WAL) |
 | `MemoryStore` | episodic events scoped `(user, session, agent)` | `SQLiteMemoryStore` | SQLite (WAL) |
 | `FactStore` | semantic facts scoped `(user, agent)` | `SQLiteFactStore` | SQLite (WAL) + `FathomAdapter` |
@@ -42,8 +42,9 @@ type narrows and renames are rejected loudly.
 - **`LanceDBVectorStore`** (`harbor.stores.lancedb`) — async-first LanceDB
   client; native Lance FTS (`use_tantivy=False`); hybrid search fuses vector
   + FTS via the configured reranker (default `RRFReranker()`).
-- **`KuzuGraphStore`** (`harbor.stores.kuzu`) — single-file embedded graph
-  DB; portable Cypher subset enforced by `harbor.stores.cypher.Linter`;
+- **`RyuGraphStore`** (`harbor.stores.ryugraph`) — single-file embedded graph
+  DB (RyuGraph: community fork of Kuzu after the Kuzu repo was archived
+  2025-10-10); portable Cypher subset enforced by `harbor.stores.cypher.Linter`;
   Cypher-write keyword scan applies on `query()`.
 - **SQLite trio** (`harbor.stores.sqlite_doc`, `sqlite_memory`,
   `sqlite_fact`) — shared pragma block inherited from engine FR-17:
@@ -81,7 +82,7 @@ same force-loud contract (FR-6).
 ## Single-writer concurrency
 
 All three embedded backends — LanceDB on local FS (issues #213, #1077,
-#2002), Kuzu's documented single-writer model, SQLite on WAL — assume one
+#2002), RyuGraph's documented single-writer model (inherited from Kuzu), SQLite on WAL — assume one
 writer per file path. Harbor enforces this in-process:
 
 - Each Provider holds an `asyncio.Lock` keyed by absolute store path.

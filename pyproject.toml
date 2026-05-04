@@ -59,14 +59,16 @@ ml = [
     "skops>=0.10",
     "joblib",
 ]
-# Note on `kuzu==0.11.3`: Kuzu's GitHub repo was archived 2025-10-10 after
-# Apple acquired Kuzu Inc. (Oct 2025). Active community fork lives at
-# `predictable-labs/ryugraph`. Harbor abstracts Kuzu behind GraphStore so
-# swapping to RyuGraph is a one-file change. Pin tight until the fork story
-# stabilizes. (FR-11, AC-12.1)
+# Note on `ryugraph>=25.9.2,<26`: RyuGraph is the community fork of Kuzu
+# (predictable-labs/ryugraph) after the Kuzu GitHub repo was archived
+# 2025-10-10 following Apple's acquisition of Kuzu Inc. RyuGraph keeps
+# the same Python API surface (Database / AsyncConnection / QueryResult)
+# so the swap was a one-module rename behind GraphStore (FR-11, AC-12.1).
+# Calver-pinned: floor at the version we swapped on, ceiling at the
+# next major calver bump.
 stores = [
     "lancedb>=0.30.2,<0.40",
-    "kuzu==0.11.3",
+    "ryugraph>=25.9.2,<26",
     "pyarrow>=15",
 ]
 skills-rag = [

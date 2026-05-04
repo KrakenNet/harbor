@@ -14,7 +14,7 @@ from harbor.stores.embeddings import Embedding, MiniLMEmbedder
 from harbor.stores.fact import Fact, FactPattern, FactStore
 from harbor.stores.graph import GraphPath as Path
 from harbor.stores.graph import GraphStore, NodeRef, ResultSet
-from harbor.stores.kuzu import KuzuGraphStore
+from harbor.stores.ryugraph import RyuGraphStore
 from harbor.stores.lancedb import LanceDBVectorStore
 from harbor.stores.memory import (
     AddDelta,
@@ -45,7 +45,7 @@ __all__ = [
     "FactStore",
     "GraphStore",
     "Hit",
-    "KuzuGraphStore",
+    "RyuGraphStore",
     "LanceDBVectorStore",
     "Linter",
     "MemoryDelta",
