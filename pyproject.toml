@@ -135,6 +135,17 @@ release = [
     "twine>=5.0",
 ]
 
+[tool.uv]
+# Force the CPU-only PyTorch wheels (~200 MB) instead of the full CUDA
+# stack (~3 GB of nvidia-* wheels) that sentence-transformers' transitive
+# torch dependency would otherwise resolve to. CI runners have no GPU and
+# the CPU wheel is functionally equivalent for the test/lint surface.
+# Setting this in pyproject (instead of relying on UV_TORCH_BACKEND env)
+# guarantees it is honored across every uv invocation -- the env var is
+# only honored when a backend is being negotiated, which depends on
+# project config being present in the first place.
+torch-backend = "cpu"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/harbor"]
 
