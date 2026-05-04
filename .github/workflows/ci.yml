@@ -22,9 +22,11 @@ jobs:
       UV_TORCH_BACKEND: cpu
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
       # All extras + dev group so pyright can resolve every optional
       # import (pyarrow / sklearn / onnxruntime / etc.) under the
       # configured ``[tool.pyright] strict`` scope.
@@ -60,9 +62,11 @@ jobs:
       UV_TORCH_BACKEND: cpu
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
       # xgboost wheels on macOS link against ``libomp.dylib`` (OpenMP)
       # at import time; without it ``import xgboost`` raises
       # ``XGBoostError`` -- which ``pytest.importorskip`` does not catch
@@ -125,9 +129,11 @@ jobs:
       HARBOR_TEST_PGBOUNCER_DSN: postgres://harbor:harbor@localhost:6432/harbor
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
       - run: uv sync --group dev
       # The `engine` marker is reserved for the engine subsystem suite once
       # those tests are ported; until then the filter resolves to zero tests
@@ -173,9 +179,11 @@ jobs:
       UV_TORCH_BACKEND: cpu
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
       - run: uv sync --group dev --extra stores --extra skills-rag --extra ml
       - run: uv run pytest tests/ -m "knowledge" --cov=harbor.stores --cov=harbor.skills -q
 
@@ -189,9 +197,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
       - run: uv sync --group dev --extra stores
       - run: uv run pytest -q tests/integration/test_cypher_subset.py --runslow --no-cov
 
@@ -200,9 +210,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
       - run: uv sync --group dev
       - run: uv run python scripts/build_draft7.py
       - run: git diff --exit-code src/harbor/schemas/ir-v1-draft7.json
@@ -226,9 +238,11 @@ jobs:
       UV_TORCH_BACKEND: cpu
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
       - run: uv sync --all-extras --all-groups
       - run: uv run pytest -q -m "serve" --tb=short
       # Strict mode comes from ``[tool.pyright] strict = ["src/harbor", "tests"]``
@@ -274,9 +288,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
       - run: |
           uv run python scripts/check_changelog_touched.py \
             --base-ref ${{ github.event.pull_request.base.sha }} \
