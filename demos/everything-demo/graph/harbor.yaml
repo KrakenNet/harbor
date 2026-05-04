@@ -40,7 +40,7 @@
 #   ml              — MLNode (sklearn / xgboost / onnx; here sklearn)
 #   retrieval       — RetrievalNode (parallel fan-out, RRF rerank)
 #   tool            — typed @tool call (lookup_history / notify_user)
-#   broker          — BrokerNode → Nautilus
+#   broker          — BrokerNode → Nautilus (Policy enforced data brokering)
 #   memory_write    — MemoryWriteNode (Episode → SQLiteMemoryStore)
 #   write_artifact  — WriteArtifactNode → ArtifactStore
 #   interrupt       — InterruptNode (durable HITL wait, timeout=null)
