@@ -37,8 +37,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-import ryugraph
-
 from harbor.errors import StoreError
 from harbor.stores._common import (
     StoreHealth,
@@ -53,6 +51,8 @@ from harbor.stores.graph import GraphPath, NodeRef, ResultSet
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from pathlib import Path
+
+    import ryugraph
 
     from harbor.stores._common import MigrationPlan
 
@@ -287,6 +287,12 @@ class RyuGraphStore:
             self._db = cached._db
             self._conn = cached._conn
             return
+        # ryugraph is a stores-extra dependency; import lazily so engine /
+        # serve subsystems that re-export RyuGraphStore through
+        # ``harbor.stores`` (for type-only purposes) can load the module
+        # without forcing the stores-extra wheel install on every CI job.
+        import ryugraph
+
         db = ryugraph.Database(
             str(self._path),
             read_only=self._read_only,

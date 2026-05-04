@@ -27,6 +27,9 @@ be re-exported from this module once those tasks ship.
 
 from __future__ import annotations
 
+import importlib
+from typing import TYPE_CHECKING, Any
+
 from .graph import Graph, GraphRun
 from .ir import dumps, dumps_canonical, loads, validate
 from .nodes.memory import MemoryWriteNode
@@ -37,8 +40,6 @@ from .stores import (
     DocStore,
     FactStore,
     GraphStore,
-    RyuGraphStore,
-    LanceDBVectorStore,
     MemoryStore,
     SQLiteDocStore,
     SQLiteFactStore,
@@ -46,6 +47,26 @@ from .stores import (
     VectorStore,
 )
 from .tools import tool
+
+if TYPE_CHECKING:
+    from .stores import LanceDBVectorStore, RyuGraphStore
+
+
+# Optional providers (require the ``stores`` extras). Re-export lazily via
+# PEP 562 module-level ``__getattr__`` so ``import harbor`` succeeds without
+# the stores-extra wheels (ryugraph / lancedb / pyarrow) installed -- the
+# engine + serve subsystems load this module unconditionally.
+_OPTIONAL_PROVIDERS: dict[str, str] = {
+    "LanceDBVectorStore": "LanceDBVectorStore",
+    "RyuGraphStore": "RyuGraphStore",
+}
+
+
+def __getattr__(name: str) -> Any:
+    if name in _OPTIONAL_PROVIDERS:
+        return getattr(importlib.import_module("harbor.stores"), _OPTIONAL_PROVIDERS[name])
+    msg = f"module {__name__!r} has no attribute {name!r}"
+    raise AttributeError(msg)
 
 __version__ = "0.2.2"
 
