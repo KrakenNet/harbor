@@ -1,24 +1,32 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tool-call cassette layer for replay-safety (FR-21, FR-28).
+"""Cassette layer for replay-safety (FR-21, FR-28).
 
-Per requirements §amendment-6: ``(tool_name, args_hash) -> result`` map. The
-cassette is checkpoint-resident -- the engine serializes it under
-``state_snapshot["__cassette_tools"]`` so re-hydrating a checkpoint restores
-every tool stub.
+Two cassette flavors:
 
-The hashing strategy is canonical-JSON (sorted keys, no whitespace) hashed
-with SHA-256. JSON-serializability is the same constraint Harbor already
-imposes on tool args (jsonschema-validated input), so this is consistent
-with the rest of the data path.
+* :class:`ToolCallCassette` keys ``(tool_id, args_hash) -> result`` for
+  read-side-effect tool calls (consumed by
+  :mod:`harbor.runtime.tool_exec`; per requirements §amendment-6).
+* :class:`NodeCassette` (Protocol) + :class:`InMemoryNodeCassette` key
+  ``(node_id, step) -> payload`` for write-side-effect nodes (design
+  §10.3). On first run a node records its outputs; on replay it reads
+  them back instead of re-issuing the side effect.
+
+Both flavors are checkpoint-resident — the engine snapshots them under
+``state_snapshot["__cassette_tools"]`` / ``__cassette_nodes``.
+
+Tool args hash uses canonical JSON (sorted keys, no whitespace) +
+SHA-256, consistent with Harbor's jsonschema-validated tool input.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 __all__ = [
+    "InMemoryNodeCassette",
+    "NodeCassette",
     "ToolCallCassette",
     "args_hash",
 ]
@@ -81,4 +89,70 @@ class ToolCallCassette:
             ahash = entry["args_hash"]
             result = entry["result"]
             cassette._entries[(tid, ahash)] = dict(result)
+        return cassette
+
+
+@runtime_checkable
+class NodeCassette(Protocol):
+    """Per-node cassette for write-side-effect nodes (design §10.3).
+
+    Keyed on ``(node_id, step)`` and carrying an opaque JSON-shaped
+    payload so any write-class node (artifact, notify, email, broker
+    write) can plug in without a per-node cassette type. On first run
+    the node calls :meth:`record`; on replay it calls :meth:`get` and
+    returns the recorded payload verbatim instead of re-issuing the
+    underlying side effect.
+    """
+
+    def record(self, node_id: str, step: int, payload: dict[str, Any]) -> None:
+        """Persist ``payload`` for the ``(node_id, step)`` execution."""
+        ...
+
+    def get(self, node_id: str, step: int) -> dict[str, Any] | None:
+        """Return the recorded payload or ``None`` on cache miss."""
+        ...
+
+
+class InMemoryNodeCassette:
+    """In-memory ``(node_id, step) -> payload`` cassette store.
+
+    Implements :class:`NodeCassette` structurally; serializes to/from a
+    plain list for checkpoint persistence under
+    ``state_snapshot["__cassette_nodes"]``.
+    """
+
+    __slots__ = ("_entries",)
+
+    def __init__(self) -> None:
+        self._entries: dict[tuple[str, int], dict[str, Any]] = {}
+
+    def record(self, node_id: str, step: int, payload: dict[str, Any]) -> None:
+        """Persist ``payload`` for the ``(node_id, step)`` execution."""
+        self._entries[(node_id, step)] = dict(payload)
+
+    def get(self, node_id: str, step: int) -> dict[str, Any] | None:
+        """Return the recorded payload or ``None`` on cache miss."""
+        recorded = self._entries.get((node_id, step))
+        return None if recorded is None else dict(recorded)
+
+    def to_state(self) -> list[dict[str, Any]]:
+        """Serialize the cassette for checkpoint persistence.
+
+        Emits a list of ``{node_id, step, payload}`` records — a list
+        (not a dict) because JSON object keys cannot be tuples.
+        """
+        return [
+            {"node_id": nid, "step": step, "payload": dict(payload)}
+            for (nid, step), payload in self._entries.items()
+        ]
+
+    @classmethod
+    def from_state(cls, state: list[dict[str, Any]]) -> InMemoryNodeCassette:
+        """Restore a cassette from :meth:`to_state` output."""
+        cassette = cls()
+        for entry in state:
+            nid = entry["node_id"]
+            step = int(entry["step"])
+            payload = entry["payload"]
+            cassette._entries[(nid, step)] = dict(payload)
         return cassette

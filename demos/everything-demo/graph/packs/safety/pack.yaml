@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# everything-demo custom safety pack.
+#
+# Bosun governance pack: kill-switches and PII guards in addition to
+# the harbor.bosun.safety_pii baseline pack. Mounted via the main
+# graph's ``governance:`` block as id ``demo.safety@1.0``.
+
+id: "demo.safety"
+version: "1.0.0"
+flavor: "governance"
+
+api_version: "1"
+harbor_facts_version: "1.0"
+
+rules:
+  - id: kill-switch-pii-leak
+    when: |
+      (state (resolution_summary contains "SSN"))
+    then:
+      - kind: halt
+        reason: "kill-switch: PII pattern detected in resolution_summary"
+
+  - id: drop-stale-fact
+    when: |
+      (fact (kind draft_resolution))
+      (state (response.decision approve))
+    then:
+      - kind: retract
+        pattern: "(fact (kind draft_resolution))"
+
+  - id: deny-broker-without-cap
+    when: |
+      (node-id (id broker_compliance_check))
+      (not (capability (name "tools:broker_request")))
+    then:
+      - kind: halt
+        reason: "kill-switch: broker call without tools:broker_request capability"

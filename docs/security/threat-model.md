@@ -93,6 +93,55 @@ work plans an SBOM-gated reload path.
 | State + Checkpointer | `--allow-side-effects` startup gate under cleared (task 2.37) — refuses to start unless operator explicitly opts in. Replay-mode side-effect blocker is independent of this gate. |
 | Replay engine | Replay isolation: cf-runs do NOT trigger external side effects (`harbor.replay.counterfactual:_replay_ctx`). HITL `respond` rate-limited per actor + scoped to the parent run's actors. |
 
+## Trigger trust boundaries
+
+The 36-cell matrix above frames `serve` as a single HTTP/WS surface.
+Trigger ingress (cron, manual, webhook) deserves an explicit
+articulation because each trigger type sits at a different point on
+the trust axis:
+
+| Trigger | Trust posture | Code reference |
+|---------|---------------|----------------|
+| **`webhook`** | **Untrusted by default**, HMAC-gated. Body validated, signature verified against the per-source secret before enqueue. Replay window enforced. | [`src/harbor/triggers/webhook.py`](https://github.com/KrakenNet/harbor/blob/main/src/harbor/triggers/webhook.py) |
+| **`cron`** | **Trusts nothing external** (good). Schedule is operator-authored at deploy time; trigger fires from the in-process scheduler with no caller identity to spoof. | [`src/harbor/triggers/cron.py`](https://github.com/KrakenNet/harbor/blob/main/src/harbor/triggers/cron.py) |
+| **`manual.enqueue`** | **Trusts the caller** (Python API). Anyone with import access can synthesize a run; HTTP-equivalent gating happens at `POST /v1/runs` (capability gate via profile). Use only inside trusted entry points. | [`src/harbor/triggers/manual.py`](https://github.com/KrakenNet/harbor/blob/main/src/harbor/triggers/manual.py) |
+
+The HTTP `POST /v1/runs` route shares the manual trigger's enqueue
+path but is gated by the capability check before it lands there;
+direct Python use of `manual.enqueue` bypasses that gate, so treat
+import access to it as equivalent to the `runs:write` capability.
+
+## Bosun pack signing — TOFU drift
+
+Pack signature verification is **alg-strict EdDSA-only** (`alg:none`,
+HS256, RS256 are rejected at load). The trust anchor is a static
+pubkey allow-list plus a TOFU first-pin: the first time a new pack id
+is seen, the operator-supplied pubkey is recorded; subsequent loads
+must present a signature verifiable under that pinned key.
+
+Drift cases the TOFU pin catches:
+
+- **Pubkey rotation.** A new key needs an explicit allow-list update
+  by the operator. A pack signed with an unpinned-but-valid Ed25519
+  key is rejected; the loader does not auto-trust on first sight if
+  an existing pin disagrees.
+- **Pack id reuse with a different signer.** Same id, different
+  pubkey = reject. Mitigates the "rename a pack to take over an
+  existing trusted slot" attack.
+
+What the pin does **not** cover:
+
+- **Filesystem tampering before first pin.** TOFU implies the first
+  load is the authoritative one. Air-gap operators should fingerprint
+  the pubkey out-of-band (release-signing key from
+  [`reference/signing.md`](../reference/signing.md)).
+- **Compromised signing key.** Once the key is on the allow-list,
+  anything signed by it loads. Rotation is operator-driven; there is
+  no automatic revocation feed in v1.
+
+Source: [`src/harbor/bosun/signing.py`](https://github.com/KrakenNet/harbor/blob/main/src/harbor/bosun/signing.py),
+plus the alg-strict guard documented in [how-to/bosun-pack.md](../how-to/bosun-pack.md).
+
 ## Documented gaps (post-1.0 work)
 
 1. **Fathom-pack hot-reload** (AC-8.3) — present in 2 cells (Tampering × Plugin loader, Elevation × Plugin loader). Mitigation: serve restart for any pack mutation. Post-1.0: SBOM-gated reload.

@@ -135,6 +135,36 @@ def test_fallback_warning_is_converted_no_leak(
     )
 
 
+# --- canary: DSPy needle still appears verbatim in upstream source --------------
+
+
+def test_fallback_needle_present_in_installed_dspy(loud_dspy: Any) -> None:
+    """CI canary: ``FALLBACK_NEEDLE`` must appear verbatim in the installed dspy package.
+
+    The loud-fallback filter is a string-match against DSPy's warning text. Any
+    DSPy patch-bump that rewords that warning would silently degrade the seam
+    (filter stops matching, JSONAdapter fallback re-becomes silent). This
+    canary scans every ``.py`` file in the installed ``dspy.adapters`` package
+    for the verbatim needle; a fail signals "needle drifted, update
+    ``FALLBACK_NEEDLE`` and re-test the filter".
+
+    Scoped to ``dspy.adapters`` (not the whole package) to stay fast and to
+    track the file the warning is actually emitted from.
+    """
+    import pathlib
+
+    needle: str = loud_dspy.FALLBACK_NEEDLE
+    adapters_pkg = pathlib.Path(dspy.adapters.__file__).parent  # type: ignore[attr-defined]
+    matches: list[pathlib.Path] = [
+        path for path in adapters_pkg.rglob("*.py") if needle in path.read_text(encoding="utf-8")
+    ]
+    assert matches, (
+        f"FALLBACK_NEEDLE {needle!r} not found in any file under {adapters_pkg}; "
+        f"DSPy {dspy.__version__} has likely reworded the JSONAdapter fallback warning. "
+        f"Update harbor.adapters.dspy.FALLBACK_NEEDLE to the new text."
+    )
+
+
 # --- helpers used only by case 1 -------------------------------------------------
 
 

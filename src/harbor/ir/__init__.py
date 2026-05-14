@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
+from ._backfill import backfill_rule_node_ids
 from ._dumps import dumps, dumps_canonical, loads
 from ._mirror import Lifecycle, Mirror, ResolvedMirror, mirrored_fields
 from ._models import (
     Action,
     AssertAction,
+    CheckpointBlock,
     FactTemplate,
     GotoAction,
     HaltAction,
@@ -36,6 +38,7 @@ from ._validate import validate
 __all__ = [
     "Action",
     "AssertAction",
+    "CheckpointBlock",
     "FactTemplate",
     "GotoAction",
     "HaltAction",
@@ -61,6 +64,7 @@ __all__ = [
     "StoreSpec",
     "ToolRef",
     "ToolSpec",
+    "backfill_rule_node_ids",
     "dumps",
     "dumps_canonical",
     "loads",

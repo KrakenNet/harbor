@@ -28,6 +28,28 @@
       "title": "AssertAction",
       "type": "object"
     },
+    "CheckpointBlock": {
+      "additionalProperties": false,
+      "description": "Checkpoint policy declaration (design \u00a73.1.2 step 7).\n\nTop-level IR field that declares the checkpoint cadence and\nbacking store. The CLI / serve lifespan reads this block and\nconstructs the :class:`harbor.checkpoint.Checkpointer`. When\nomitted, the run loop uses CLI defaults\n(``./.harbor/run.sqlite``, ``every: node-exit``).\n\nAttributes:\n    every: Cadence \u2014 currently only ``\"node-exit\"`` is supported;\n        ``\"never\"`` and ``\"step-N\"`` are reserved for future\n        phases.\n    store: DSN-style store binding. ``\"sqlite:./path.sqlite\"``\n        (file) or ``\"postgres:dsn\"`` (Phase 3+).",
+      "properties": {
+        "every": {
+          "default": "node-exit",
+          "enum": [
+            "node-exit",
+            "never"
+          ],
+          "title": "Every",
+          "type": "string"
+        },
+        "store": {
+          "default": "sqlite:./.harbor/run.sqlite",
+          "title": "Store",
+          "type": "string"
+        }
+      },
+      "title": "CheckpointBlock",
+      "type": "object"
+    },
     "GotoAction": {
       "additionalProperties": false,
       "description": "Transition to ``target`` rule/state.",
@@ -154,7 +176,7 @@
     },
     "NodeSpec": {
       "additionalProperties": false,
-      "description": "Graph node descriptor (POC: id + kind; later tasks add IO and config).",
+      "description": "Graph node descriptor.\n\nAttributes:\n    id: Node identifier, unique within the IR.\n    kind: Either a short kind registered in\n        :data:`harbor.cli.run._NODE_FACTORIES`\n        (``echo``/``halt``/``passthrough``/``tool``/``broker``/\n        ``write_artifact``/``interrupt``/``ml``/``subgraph``/``dspy``)\n        or a ``module.path:ClassName`` reference imported via\n        :mod:`importlib`.\n    spec: Optional subgraph file path (relative to the IR YAML)\n        for ``kind: subgraph`` nodes. Resolved by\n        :class:`harbor.nodes.subgraph.SubGraphNode` at construction.\n        ``None`` for non-subgraph nodes.\n    config: Optional per-node config dict. Forwarded as kwargs into\n        the node factory by\n        :func:`harbor.cli.run._build_node_registry` so concrete node\n        classes (``BrokerNode``/``MLNode``/``WriteArtifactNode``)\n        can read their own config without sub-classing per call site.",
       "properties": {
         "id": {
           "title": "Id",
@@ -163,6 +185,23 @@
         "kind": {
           "title": "Kind",
           "type": "string"
+        },
+        "spec": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spec"
+        },
+        "config": {
+          "additionalProperties": true,
+          "title": "Config",
+          "type": "object"
         }
       },
       "required": [
@@ -353,7 +392,7 @@
     },
     "RuleSpec": {
       "additionalProperties": false,
-      "description": "Single rule (POC: id + ``when`` pattern + ``then`` action list).\n\n``then`` is a list of :data:`Action` -- the discriminated union; the\nFR-11 \"no nesting\" constraint is enforced by the type itself (variants\ncannot themselves contain :data:`Action` fields).",
+      "description": "Single rule (POC: id + ``when`` pattern + ``then`` action list).\n\n``then`` is a list of :data:`Action` -- the discriminated union; the\nFR-11 \"no nesting\" constraint is enforced by the type itself (variants\ncannot themselves contain :data:`Action` fields).\n\nAttributes:\n    id: Rule identifier, unique within the IR.\n    when: CLIPS-style ``when`` pattern (free text; engine parses).\n    then: Discriminated-union list of routing/control actions.\n    node_id: Owning node id. Introduced in IR ``1.1.0`` for UI /\n        topology consumers (so a rule's source node is explicit\n        rather than inferred from a naming convention). Optional for\n        backward compatibility -- documents declaring\n        ``ir_version: \"1.0.0\"`` may omit it; loaders MAY fill it via\n        the ``rule_id`` prefix heuristic so downstream tools\n        (``harbor inspect``, StarGraph topology endpoint) can assume\n        non-null. New graphs at ``1.1.0`` SHOULD declare ``node_id``\n        explicitly.",
       "properties": {
         "id": {
           "title": "Id",
@@ -404,6 +443,18 @@
           },
           "title": "Then",
           "type": "array"
+        },
+        "node_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Node Id"
         }
       },
       "required": [
@@ -540,6 +591,18 @@
       "title": "State Schema",
       "type": "object"
     },
+    "state_class": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "State Class"
+    },
     "parallel": {
       "items": {
         "$ref": "#/definitions/ParallelBlock"
@@ -560,6 +623,17 @@
       },
       "title": "Migrate",
       "type": "array"
+    },
+    "checkpoints": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/CheckpointBlock"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

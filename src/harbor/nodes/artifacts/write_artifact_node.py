@@ -9,13 +9,11 @@ bus, and patches the resulting :class:`~harbor.artifacts.ArtifactRef`
 into state under :attr:`WriteArtifactNodeConfig.output_field`.
 
 Replay determinism (``side_effects = SideEffects.write``, design §10.3):
-``replay_policy="must_stub"`` (default) refuses to call
-:meth:`ArtifactStore.put` when ``ctx.is_replay`` is ``True`` -- the
-cassette layer is expected to surface the recorded
-:class:`~harbor.artifacts.ArtifactRef` upstream of node dispatch.
-``replay_policy="fail_loud"`` raises
-:class:`~harbor.errors.ArtifactStoreError` on any replay-time call so
-mis-wired replay setups surface immediately.
+on replay (``ctx.is_replay=True``) the node returns the recorded
+:class:`~harbor.artifacts.ArtifactRef` from ``ctx.node_cassette``
+without calling :meth:`ArtifactStore.put`. Misses raise
+:class:`~harbor.errors.ArtifactStoreError` regardless of
+``replay_policy`` -- silently re-writing would double the side effect.
 
 The Phase-1 :class:`~harbor.nodes.base.ExecutionContext` Protocol only
 pins ``run_id``; this module declares :class:`WriteArtifactContext` as
@@ -45,12 +43,26 @@ if TYPE_CHECKING:
     from pydantic import BaseModel
 
     from harbor.artifacts import ArtifactRef, ArtifactStore
+    from harbor.replay.cassettes import NodeCassette
 
 __all__ = [
     "WriteArtifactContext",
     "WriteArtifactNode",
     "WriteArtifactNodeConfig",
 ]
+
+
+def _cassette_and_node_id(ctx: object) -> tuple[NodeCassette | None, str]:
+    """Read the optional ``node_cassette`` + ``node_id`` slots off ``ctx``.
+
+    Lifted out of :class:`WriteArtifactNode` so the record / replay
+    paths share one duck-typed access pattern. Both slots are optional
+    on :class:`WriteArtifactContext`; legacy / test contexts may omit
+    them, in which case the cassette path is a no-op.
+    """
+    cassette: NodeCassette | None = getattr(ctx, "node_cassette", None)
+    node_id = getattr(ctx, "node_id", "") or ""
+    return cassette, node_id
 
 
 @runtime_checkable
@@ -71,6 +83,12 @@ class WriteArtifactContext(Protocol):
     * ``is_replay`` -- replay-routing flag, mirrors
       :attr:`harbor.runtime.tool_exec.RunContext.is_replay`. Honored by
       ``replay_policy``.
+    * ``node_cassette`` -- :class:`~harbor.replay.cassettes.NodeCassette`
+      for the run, or ``None`` when no cassette is attached.
+      Recorded on live runs; consulted on replay so the node returns
+      recorded state without re-issuing the write.
+    * ``node_id`` -- the IR node id; used as the cassette key with
+      ``step``. May be empty on legacy contexts.
     * ``fathom`` -- optional :class:`~harbor.fathom.FathomAdapter` for
       ``harbor.transition`` mirroring (parity with the bus-side
       contract in :mod:`harbor.runtime.parallel`).
@@ -108,20 +126,13 @@ class WriteArtifactNodeConfig(IRBase):
 class WriteArtifactNode(NodeBase):
     """Built-in node that persists a state-resident payload as an artifact (FR-92).
 
-    The node is replay-aware: ``side_effects = SideEffects.write`` marks
-    it as a write-side-effect node, and ``replay_policy`` controls what
-    happens when ``ctx.is_replay`` is ``True``:
-
-    * ``must_stub`` (default) -- the node does NOT call
-      :meth:`ArtifactStore.put`; the upstream cassette layer is expected
-      to surface a recorded :class:`ArtifactRef` ahead of dispatch.
-      Today the runtime cassette layer for nodes is not yet wired (the
-      tool-exec replay path at :mod:`harbor.runtime.tool_exec` only
-      handles tool calls), so reaching this branch in replay means the
-      cassette wiring is incomplete; the node raises
-      :class:`ArtifactStoreError` with a clear message until that lands.
-    * ``fail_loud`` -- the node raises immediately on any replay-time
-      call, surfacing wiring bugs without ambiguity.
+    Replay-aware (``side_effects = SideEffects.write``, design §10.3):
+    on replay the node consults ``ctx.node_cassette`` for the
+    ``(node_id, step)`` entry recorded on the live run and returns the
+    recorded :class:`ArtifactRef` payload without re-issuing
+    :meth:`ArtifactStore.put`. A cassette miss raises
+    :class:`ArtifactStoreError` regardless of ``replay_policy`` --
+    silent re-writing would double the side effect.
 
     Configured via :class:`WriteArtifactNodeConfig`; the config is
     attached at construction time (``WriteArtifactNode(config=cfg)``).
@@ -151,12 +162,17 @@ class WriteArtifactNode(NodeBase):
         so the field-merge step (FR-11) writes the
         :class:`ArtifactRef` (JSON-mode dump) into run state under the
         configured key.
+
+        Replay path (``ctx.is_replay=True``): consults the per-node
+        cassette via :meth:`_replay_from_cassette`. Hits surface the
+        recorded :class:`ArtifactRef` without re-issuing
+        :meth:`ArtifactStore.put`. Misses honor ``replay_policy``.
         """
         write_ctx = self._require_write_context(ctx)
         content_bytes = self._coerce_content(getattr(state, self._config.content_field))
 
         if write_ctx.is_replay:
-            self._handle_replay()
+            return self._replay_from_cassette(write_ctx)
 
         store = write_ctx.artifact_store
         sidecar_metadata: dict[str, Any] = {
@@ -173,7 +189,9 @@ class WriteArtifactNode(NodeBase):
 
         await self._emit_artifact_written(write_ctx, ref)
 
-        return {self._config.output_field: ref.model_dump(mode="json")}
+        ref_payload = ref.model_dump(mode="json")
+        self._record_to_cassette(write_ctx, ref_payload)
+        return {self._config.output_field: ref_payload}
 
     # ------------------------------------------------------------------ #
     # internals                                                          #
@@ -217,35 +235,46 @@ class WriteArtifactNode(NodeBase):
             "WriteArtifactNode content_field must be bytes or str; got " + type(value).__name__
         )
 
-    def _handle_replay(self) -> None:
-        """Apply the configured ``replay_policy`` when ``ctx.is_replay`` is True.
+    def _replay_from_cassette(self, ctx: WriteArtifactContext) -> dict[str, Any]:
+        """Return the recorded ``ArtifactRef`` payload, or raise loudly on miss.
 
-        Both branches raise today: the runtime cassette layer for
-        nodes is not yet wired (only :mod:`harbor.runtime.tool_exec`
-        handles replay), so a replay-time call to this node means the
-        cassette wiring is incomplete. The error message names the gap
-        explicitly per the design's "fail loud on missing wiring"
-        contract (FR-6).
+        Hits return ``{output_field: <ref payload>}`` -- the same shape
+        the live path produces. Misses raise :class:`ArtifactStoreError`
+        regardless of ``replay_policy``: silently re-writing on replay
+        would double the side effect, so both ``fail_loud`` and
+        ``must_stub`` map to a loud raise (FR-6).
         """
-        if self._config.replay_policy == "fail_loud":
-            raise ArtifactStoreError(
-                "WriteArtifactNode invoked in replay context with "
-                "replay_policy='fail_loud'; recorded ArtifactRef must "
-                "be surfaced via the cassette layer before dispatch.",
-                reason="replay-fail-loud",
-                backend="harbor.nodes.artifacts.WriteArtifactNode",
-            )
-        # must_stub: today the node-cassette layer is not yet wired, so
-        # we surface the gap loudly rather than silently writing.
+        cassette, node_id = _cassette_and_node_id(ctx)
+        if cassette is not None and node_id:
+            recorded = cassette.get(node_id, ctx.step)
+            if recorded is not None:
+                return {self._config.output_field: dict(recorded)}
+
+        reason = (
+            "replay-fail-loud"
+            if self._config.replay_policy == "fail_loud"
+            else "replay-stub-missing"
+        )
         raise ArtifactStoreError(
-            "WriteArtifactNode invoked in replay context with "
-            "replay_policy='must_stub' but the node-cassette layer is "
-            "not yet wired (harbor.runtime.tool_exec covers tool "
-            "calls only). The recorded ArtifactRef must be surfaced "
-            "ahead of node dispatch -- raising rather than re-writing.",
-            reason="replay-stub-missing",
+            f"WriteArtifactNode invoked in replay context (node_id={node_id!r}, "
+            f"step={ctx.step}) with replay_policy={self._config.replay_policy!r} "
+            "but the node cassette has no recorded ArtifactRef for this step. "
+            "Either replay was started without restoring the cassette, or the "
+            "live run never executed this node — both are wiring bugs.",
+            reason=reason,
             backend="harbor.nodes.artifacts.WriteArtifactNode",
         )
+
+    @staticmethod
+    def _record_to_cassette(
+        ctx: WriteArtifactContext,
+        ref_payload: dict[str, Any],
+    ) -> None:
+        """Record ``ref_payload`` on the node cassette; no-op when unwired."""
+        cassette, node_id = _cassette_and_node_id(ctx)
+        if cassette is None or not node_id:
+            return
+        cassette.record(node_id, ctx.step, ref_payload)
 
     async def _emit_artifact_written(
         self,

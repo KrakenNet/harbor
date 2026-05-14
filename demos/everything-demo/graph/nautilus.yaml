@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# everything-demo Nautilus broker config.
+#
+# Place this file at one of:
+#   - <harbor-config>/nautilus.yaml  (resolved via HARBOR_CONFIG_DIR or ~/.config/harbor/)
+#   - or pass --config-dir <dir-containing-this-file> to `harbor serve`
+#
+# Harbor's lifespan factory (harbor.serve.lifecycle.broker_lifespan)
+# detects this file and calls Broker.from_config(yaml_path); when
+# absent, BrokerNode + broker_request tool fail loudly at first call.
+#
+# Source set: a SOC system-of-record + an internal compliance KB.
+# Fully implementing these requires the kraken-plugins nautilus
+# adapter SDK; this file is the schema sketch the broker consumes.
+
+version: "1.0"
+
+sources:
+  - name: soc_sor
+    adapter: nautilus.adapters.servicenow
+    enabled: true
+    caps:
+      max_qps: 5
+      max_concurrency: 2
+      monthly_budget_usd: "100.00"
+    config:
+      base_url: "https://soc.example.invalid"
+      auth_credential: "soc_sor_oauth"
+
+  - name: compliance_kb
+    adapter: nautilus.adapters.confluence
+    enabled: true
+    caps:
+      max_qps: 10
+      max_concurrency: 4
+      monthly_budget_usd: "25.00"
+    config:
+      base_url: "https://kb.example.invalid"
+      auth_credential: "compliance_kb_token"
+
+routing:
+  default: soc_sor
+  intent_map:
+    "compliance.*": compliance_kb
+    "incident.*": soc_sor
+    "*": soc_sor
+
+attestation:
+  signing_key: "ed25519://harbor-broker"
+  audit_chain: "jsonl:./.audit-broker.jsonl"

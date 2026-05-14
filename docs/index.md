@@ -10,6 +10,6 @@ Harbor is a plugin-first runtime that composes tools, skills, stores, and policy
 - Hands-on learners: walk the [Tutorials](tutorials/index.md).
 - Solving a specific problem: see the [How-to Guides](how-to/index.md).
 - Want the model? Read [Concepts](concepts/index.md).
-- Looking up an API? Use the [Reference](reference/python/index.md).
+- Looking up an API? Use the [Reference](reference/ir-schema.md) section.
 
 > TODO: replace landing copy once 0.1 ships.

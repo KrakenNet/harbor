@@ -21,6 +21,7 @@ from harbor.checkpoint.protocol import Checkpoint
 from harbor.ir._models import GotoAction, HaltAction, ParallelAction
 from harbor.runtime.action import ContinueAction, translate_actions
 from harbor.runtime.events import TransitionEvent
+from harbor.runtime.parallel import execute_parallel
 
 if TYPE_CHECKING:
     from harbor.graph.run import GraphRun
@@ -49,11 +50,18 @@ async def dispatch_node(
     """
     current_id = current_node.id
 
-    # 1. Run node body.
+    # 1. Run node body. Stamp the current node id on the run so
+    # write-side-effect nodes can key the per-node cassette by
+    # ``(node_id, step)`` (design §10.3). Cleared in ``finally`` so the
+    # id never leaks across ticks.
     node_impl = run.node_registry.get(current_id)
     if node_impl is None:
         raise KeyError(f"no node implementation registered for id={current_id!r}")
-    outputs = await node_impl.execute(state, run)
+    run.node_id = current_id
+    try:
+        outputs = await node_impl.execute(state, run)
+    finally:
+        run.node_id = ""
 
     # 2. Apply outputs to state (last-write-wins; FR-11 typed merge later).
     state = state.model_copy(update=outputs)
@@ -116,11 +124,65 @@ async def dispatch_node(
     if isinstance(decision, HaltAction):
         return state, None
     if isinstance(decision, ParallelAction):
-        raise NotImplementedError("parallel branches land in Phase 3")
+        state, next_id = await _dispatch_parallel(run, nodes, decision, state, step)
+        return state, next_id
     if isinstance(decision, GotoAction):
         return state, decision.target
     # ContinueAction -- walk the static IR edge.
     return state, _next_node_id(nodes, current_id)
+
+
+async def _dispatch_parallel(
+    run: GraphRun,
+    nodes: list[NodeSpec],
+    action: ParallelAction,
+    state: Any,
+    step: int,
+) -> tuple[Any, str | None]:
+    """Run a rule-emitted ParallelAction fan-out (design §3.6.1).
+
+    Each target dispatches once via :func:`dispatch_node` against the
+    same parent state. The merged result is the last branch's state
+    (last-write-wins placeholder; FR-11 typed merge lands later). The
+    returned ``next_id`` is the action's ``join`` target (or ``None``
+    when join is empty -- the static-edge walk resumes).
+
+    Mirrors :func:`harbor.graph.loop._run_parallel_block` for the
+    top-level ``parallel:`` IR block; the rule-emitted variant is the
+    routing-decision form of the same fan-out.
+    """
+
+    def _branch_factory(target_id: str, branch_step: int) -> Any:
+        async def _run() -> Any:
+            target_node = _lookup_node(nodes, target_id)
+            new_state, _ = await dispatch_node(run, nodes, target_node, state, branch_step)
+            return new_state
+
+        return _run
+
+    factories = [
+        _branch_factory(target, step + idx + 1)
+        for idx, target in enumerate(action.targets)
+    ]
+    results = await execute_parallel(
+        factories,
+        strategy=action.strategy or "all",
+        bus=run.bus,
+        fathom=run.fathom,
+        run_id=run.run_id,
+        step=step,
+    )
+    merged = results[-1] if results else state
+    next_id: str | None = action.join or None
+    return merged, next_id
+
+
+def _lookup_node(nodes: list[NodeSpec], node_id: str) -> NodeSpec:
+    """Return the :class:`NodeSpec` with ``id == node_id`` or raise :class:`KeyError`."""
+    for node in nodes:
+        if node.id == node_id:
+            return node
+    raise KeyError(f"no node with id={node_id!r} in graph")
 
 
 def _next_node_id(nodes: list[NodeSpec], current_id: str) -> str | None:

@@ -1,4 +1,4 @@
-# Harbor
+# StarGraph - Core (harbor)
 
 **Stateful agent-graph framework with deterministic governance.**
 

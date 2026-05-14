@@ -88,8 +88,16 @@ class SummaryRenderer:
         artifacts_dir: Path,
         run_id: str,
         checkpoint: Path,
+        duration_ms_override: int | None = None,
     ) -> None:
-        """Write artifact files to disk; render summary to console."""
+        """Write artifact files to disk; render summary to console.
+
+        ``duration_ms_override`` (when provided) replaces the
+        ``last_step_at - started_at`` derivation. The loop's ``_summary``
+        helper currently stamps both fields at run-end, which collapses to
+        ``0ms`` on fast graphs; passing ``ResultEvent.run_duration_ms`` here
+        is the authoritative wall-clock duration.
+        """
         artifact_relpaths: list[str] = []
         verifier_results: list[Any] = []
         state_dump: dict[str, Any] = {}
@@ -108,7 +116,11 @@ class SummaryRenderer:
         if self._suppress:
             return
 
-        duration_ms = int((summary.last_step_at - summary.started_at).total_seconds() * 1000)
+        duration_ms = (
+            duration_ms_override
+            if duration_ms_override is not None
+            else int((summary.last_step_at - summary.started_at).total_seconds() * 1000)
+        )
 
         if self._json_mode:
             payload: dict[str, Any] = {
@@ -160,4 +172,7 @@ class SummaryRenderer:
                     rendered = rendered[:57] + "..."
                 self._console.print(f"    [dim]{name}[/dim]: {rendered}")
 
-        self._console.print(f"\n  inspect: harbor inspect {checkpoint} --run-id {run_id}")
+        # Print the inspect hint on its own continuation line so the
+        # checkpoint path + UUID don't wrap mid-token in narrow terminals.
+        self._console.print("\n  inspect:")
+        self._console.print(f"    harbor inspect {checkpoint} --run-id {run_id}")

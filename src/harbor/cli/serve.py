@@ -39,6 +39,8 @@ import uvicorn
 from harbor.artifacts.fs import FilesystemArtifactStore
 from harbor.checkpoint.sqlite import SQLiteCheckpointer
 from harbor.errors import HarborRuntimeError, ProfileViolationError
+from harbor.graph.definition import Graph
+from harbor.ir._models import IRDocument
 from harbor.registry.stores import StoreRegistry
 from harbor.registry.tools import ToolRegistry
 from harbor.serve.api import create_app
@@ -121,6 +123,49 @@ def cmd(
             ),
         ),
     ] = False,
+    graph_paths: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--graph",
+            help=(
+                "IR YAML graph to load and register at boot "
+                "(repeatable). The graph's ``id`` (e.g. "
+                "``graph:cve-rem-pipeline``) is the key downstream "
+                "POST /v1/runs uses; submitting a run for an "
+                "unregistered graph_id falls back to the synthetic "
+                "POC RunSummary (status=done, no real execution). "
+                "Phase 3 task 2.30 wires this from harbor.toml."
+            ),
+        ),
+    ] = None,
+    lm_url: Annotated[
+        str | None,
+        typer.Option(
+            "--lm-url",
+            help="LLM endpoint URL for DSPy nodes (OpenAI-compatible). Pair with --lm-model.",
+        ),
+    ] = None,
+    lm_model: Annotated[
+        str | None,
+        typer.Option(
+            "--lm-model",
+            help="LLM model identifier (e.g. gpt-oss:20b). Required if --lm-url is set.",
+        ),
+    ] = None,
+    lm_key: Annotated[
+        str,
+        typer.Option(
+            "--lm-key",
+            help="API key for the LLM endpoint. Defaults to 'placeholder' (works for ollama).",
+        ),
+    ] = "placeholder",
+    lm_timeout: Annotated[
+        int,
+        typer.Option(
+            "--lm-timeout",
+            help="LLM call timeout in seconds.",
+        ),
+    ] = 60,
 ) -> None:
     """Boot the Harbor serve FastAPI app under uvicorn (POC).
 
@@ -146,6 +191,12 @@ def cmd(
     """
     os.environ["HARBOR_PROFILE"] = profile
     selected = select_profile()
+
+    # Configure DSPy LM up front so any --graph that uses DSPy nodes finds
+    # a real endpoint at boot. _configure_lm is a no-op when both flags are
+    # None; raises typer.BadParameter if exactly one is set.
+    from harbor.cli.run import _configure_lm  # local import: cli cycle
+    _configure_lm(lm_url, lm_model, lm_key, lm_timeout)
 
     # Profile-conditional startup gate (task 2.37, FR-32, FR-68, AC-4.2,
     # design §11.1, §15). Cleared profile FORBIDS the two boot-time
@@ -203,6 +254,33 @@ def cmd(
     # in Phase 3 task 2.30 wires the pluggy-loaded registries here so
     # the ``GET /v1/graphs`` and ``GET /v1/registry/{kind}`` routes
     # surface the real plugin manifest contents instead of empty lists.
+    # Graph + node registry. Each --graph PATH is loaded as IR YAML,
+    # validated via IRDocument.model_validate, wrapped in Graph, and
+    # registered under its ir.id. The dispatcher (_drive_real_run)
+    # reads deps["node_registry"][graph_id] to resolve each NodeSpec's
+    # `kind: "module:Class"` to a real callable; without this it
+    # raises KeyError("no node implementation registered ...") on the
+    # first dispatched node. _build_node_registry is reused from the
+    # `harbor run` CLI so serve + run share the same import-and-wire
+    # path (matching FR-1 invariant: identical IR -> identical
+    # behaviour across surfaces).
+    from harbor.cli.run import _build_node_registry  # local import: cli cycle
+    graphs: dict[str, Graph] = {}
+    node_registries: dict[str, dict[str, Any]] = {}
+    for path in graph_paths or []:
+        import yaml as _yaml  # local import: yaml is an indirect dep
+        ir_doc = IRDocument.model_validate(_yaml.safe_load(path.read_text()))
+        graph = Graph(ir=ir_doc)
+        graphs[ir_doc.id] = graph
+        node_registries[ir_doc.id] = _build_node_registry(
+            ir_doc.nodes, ir_dir=path.parent.resolve(),
+        )
+        typer.echo(
+            f"  loaded graph: {ir_doc.id}  "
+            f"(nodes={len(ir_doc.nodes)}, hash={graph.graph_hash[:12]}, "
+            f"path={path})"
+        )
+
     deps: dict[str, Any] = {
         "scheduler": scheduler,
         "runs": {},
@@ -210,7 +288,8 @@ def cmd(
         "run_history": None,
         "checkpointer": checkpointer,
         "artifact_store": artifact_store,
-        "graphs": {},
+        "graphs": graphs,
+        "node_registry": node_registries,
         "registry": {
             "tools": ToolRegistry(),
             "stores": StoreRegistry(),
@@ -249,6 +328,17 @@ def cmd(
         # Bootstrap the artifact store root + NFS-refusal probe before
         # the artifacts routes start serving requests.
         await artifact_store.bootstrap()
+        # Inject deps into the scheduler so its dispatcher can resolve
+        # ``deps["graphs"]`` -> :class:`Graph` and drive a real
+        # :class:`GraphRun` through the loop. Without this hand-off the
+        # dispatcher falls back to a synthetic POC ``RunSummary`` even
+        # when the lifespan factory has loaded graphs.
+        scheduler.set_deps(deps)
+        # Wire the post-bootstrap RunHistory into the scheduler so
+        # _record_history_pending writes the runs_history row on
+        # enqueue. Without this, POST /v1/runs queues a row that
+        # never lands in history -> GET /v1/runs is empty.
+        scheduler.set_run_history(run_history)
         await scheduler.start()
         # Compose the Nautilus :class:`Broker` lifespan inside the
         # outer scheduler / checkpointer / artifact-store lifespan so

@@ -82,18 +82,32 @@ async def _run_timeline(db: Path, run_id: str, jsonl_path: Path | None) -> None:
     ``run_event_offsets`` index from :class:`RunHistory` (design §6.5)
     is reserved for a future ``(first, last)`` offset shape that lets
     the timeline seek the per-step slice rather than full-scan.
+
+    Closes the checkpointer in a ``finally`` so the aiosqlite worker
+    thread is shut down before :func:`asyncio.run` tears the loop down
+    (otherwise pytest reports
+    ``PytestUnhandledThreadExceptionWarning: Event loop is closed`` from
+    the leaked ``_connection_worker_thread``).
     """
     cp = SQLiteCheckpointer(db)
     await cp.bootstrap()
-    rows = await inspect_body.build_timeline(cp, run_id, history=None, jsonl_path=jsonl_path)
-    typer.echo(inspect_body.format_timeline(rows))
+    try:
+        rows = await inspect_body.build_timeline(
+            cp, run_id, history=None, jsonl_path=jsonl_path
+        )
+        typer.echo(inspect_body.format_timeline(rows))
+    finally:
+        await cp.close()
 
 
 async def _run_state_at_step(db: Path, run_id: str, step: int) -> None:
     """Drive the state-at-step view -- read-only Checkpointer call."""
     cp = SQLiteCheckpointer(db)
     await cp.bootstrap()
-    state = await inspect_body.state_at_step(cp, run_id, step)
+    try:
+        state = await inspect_body.state_at_step(cp, run_id, step)
+    finally:
+        await cp.close()
     if state is None:
         typer.echo(f"no checkpoint at run_id={run_id!r} step={step}", err=True)
         raise typer.Exit(code=1)
@@ -104,7 +118,10 @@ async def _run_fact_diff(db: Path, run_id: str, step_a: int, step_b: int) -> Non
     """Drive the fact-diff view -- read-only Checkpointer call."""
     cp = SQLiteCheckpointer(db)
     await cp.bootstrap()
-    delta = await inspect_body.fact_diff(cp, run_id, step_a, step_b)
+    try:
+        delta = await inspect_body.fact_diff(cp, run_id, step_a, step_b)
+    finally:
+        await cp.close()
     if delta is None:
         typer.echo(
             f"missing checkpoint at run_id={run_id!r} step in ({step_a},{step_b})",

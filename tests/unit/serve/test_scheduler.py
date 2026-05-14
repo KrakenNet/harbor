@@ -213,9 +213,9 @@ async def test_capacity_limiter_per_graph_hash_serialises_same_graph() -> None:
         # Same-graph eager-allocation: future returned but limiter-cache
         # populated at enqueue time. Use a synthesized future we won't
         # await; the dispatcher will resolve it on the synthetic stub.
-        fut_a = scheduler.enqueue("graph-A", {})
-        fut_b = scheduler.enqueue("graph-A", {})
-        fut_c = scheduler.enqueue("graph-B", {})
+        h_a = scheduler.enqueue("graph-A", {})
+        h_b = scheduler.enqueue("graph-A", {})
+        h_c = scheduler.enqueue("graph-B", {})
 
         limiter_a = scheduler._get_limiter("graph-A")  # pyright: ignore[reportPrivateUsage]
         limiter_b = scheduler._get_limiter("graph-A")  # pyright: ignore[reportPrivateUsage]
@@ -225,7 +225,9 @@ async def test_capacity_limiter_per_graph_hash_serialises_same_graph() -> None:
         assert limiter_a.total_tokens == 1, "default per-graph capacity is 1"
 
         # Wait for the dispatcher to resolve all three (synthetic stub).
-        await asyncio.wait_for(asyncio.gather(fut_a, fut_b, fut_c), timeout=2.0)
+        await asyncio.wait_for(
+            asyncio.gather(h_a.future, h_b.future, h_c.future), timeout=2.0
+        )
     finally:
         await scheduler.stop()
 
@@ -319,13 +321,13 @@ async def test_scheduler_stop_cancels_pending_futures() -> None:
     scheduler = Scheduler()
     await scheduler.start()
     # Enqueue many items so the dispatcher cannot drain them before stop.
-    futs = [scheduler.enqueue(f"graph-{i}", {}) for i in range(50)]
+    handles = [scheduler.enqueue(f"graph-{i}", {}) for i in range(50)]
     # Stop immediately; pending futures should be cancelled or already
     # resolved via the synthetic dispatcher.
     await scheduler.stop()
     # All futures done (either resolved or cancelled); none stuck pending.
-    for f in futs:
-        assert f.done(), "future left pending after Scheduler.stop()"
+    for h in handles:
+        assert h.future.done(), "future left pending after Scheduler.stop()"
 
 
 async def test_register_cron_validates_expression_eagerly() -> None:

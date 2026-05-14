@@ -9,11 +9,11 @@ result wins, supporting Bosun's first-deny authorisation semantics. The
 ``register_*`` collect-all hooks intentionally omit ``firstresult`` so
 every plugin's contributions are aggregated.
 
-.. note::
-   ``PluginManager``, ``ToolCall``, ``ToolResult``, ``StoreSpec`` and
-   ``PackSpec`` do not yet exist in the POC and are aliased to
-   :data:`Any` below. Phase 2 will introduce concrete types and tighten
-   these signatures.
+Type aliases used by the hookspecs (``PluginManager``, ``ToolCall``,
+``ToolResult``, ``StoreSpec``, ``PackSpec``, ``Route``) live in
+:mod:`harbor.plugin.types`. Phase-2 backfill (resolved): plugin authors
+import them from that module and get a real contract instead of bare
+:data:`Any`.
 """
 
 from __future__ import annotations
@@ -21,26 +21,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from harbor.plugin._markers import hookspec
+from harbor.plugin.types import (
+    MCPAdapterSpec,
+    PackSpec,
+    PluginManager,
+    Route,
+    StoreSpec,
+    ToolCall,
+    ToolResult,
+)
 
 if TYPE_CHECKING:
     from harbor.ir._models import SkillSpec, ToolSpec
-
-# TODO(phase-2): replace these ``Any`` aliases with the real domain
-# types once they land (PluginManager from the loader, ToolCall /
-# ToolResult from the runtime, StoreSpec / PackSpec from the registry).
-type PluginManager = Any
-type ToolCall = Any
-type ToolResult = Any
-type StoreSpec = Any
-type PackSpec = Any
-type Route = Any
-"""FastAPI ``Route`` (or ``APIRouter``) returned by trigger plugins.
-
-Aliased to :data:`Any` so this module stays import-light: pulling FastAPI
-into ``harbor.plugin`` would force every plugin host to install it. Phase 2
-+ tightens this to ``starlette.routing.BaseRoute`` once the serve module
-lands its FastAPI dependency officially.
-"""
 
 
 @hookspec
@@ -84,6 +76,18 @@ def register_stores() -> list[StoreSpec]:
 @hookspec
 def register_packs() -> list[PackSpec]:
     """Collect-all: each plugin returns the packs it provides."""
+    return []
+
+
+@hookspec
+def register_mcp_adapters() -> list[MCPAdapterSpec]:
+    """Collect-all: each plugin returns the MCP adapters it provides (FR-25).
+
+    The serve / engine wiring drives :func:`harbor.adapters.mcp.bind`
+    against each spec at the appropriate lifespan point. v1 transport is
+    stdio; the adapter dispatches at runtime on session-shape duck-typing
+    so plugins can ship in-memory adapters for tests too.
+    """
     return []
 
 
@@ -175,6 +179,7 @@ for _hook in (
     register_skills,
     register_stores,
     register_packs,
+    register_mcp_adapters,
     trigger_init,
     trigger_start,
     trigger_stop,

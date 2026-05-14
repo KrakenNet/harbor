@@ -229,3 +229,40 @@ def test_call_tool_capability_gated(mcp_adapter: Any) -> None:
 
     # The session's ``call_tool`` was never reached -- gate is in front.
     assert session.calls == []
+
+
+def test_collect_mcp_adapters_aggregates_hookimpl_results(mcp_adapter: Any) -> None:
+    """FR-25 plugin path: ``collect_mcp_adapters(pm)`` aggregates hookimpls.
+
+    Plugin authors register MCP adapters under ``harbor.mcp_adapters`` and
+    implement ``register_mcp_adapters() -> list[MCPAdapterSpec]``.
+    :func:`harbor.adapters.mcp.collect_mcp_adapters` is the aggregator the
+    serve / engine wiring drives at lifespan time. This test stands up a
+    bare ``pluggy.PluginManager``, registers a fake plugin module, and
+    asserts the collector returns the spec the plugin contributed.
+    """
+    import pluggy
+
+    from harbor.plugin import hookspecs
+    from harbor.plugin._markers import PROJECT
+    from harbor.plugin.types import MCPAdapterSpec
+
+    pm = pluggy.PluginManager(PROJECT)
+    pm.add_hookspecs(hookspecs)
+
+    spec = MCPAdapterSpec(
+        name="example-mcp",
+        server=object(),  # session-shaped duck — adapter never opens it here
+        required_capabilities=["mcp.example:read"],
+    )
+
+    class FakePlugin:
+        @staticmethod
+        @pluggy.HookimplMarker(PROJECT)
+        def register_mcp_adapters() -> list[MCPAdapterSpec]:
+            return [spec]
+
+    pm.register(FakePlugin, name="fake-mcp-plugin")
+
+    collected = mcp_adapter.collect_mcp_adapters(pm)
+    assert collected == [spec]
