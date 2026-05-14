@@ -86,6 +86,47 @@ async def _connect(path: Path) -> aiosqlite.Connection:
 # --------------------------------------------------------------------------- #
 
 
+def _describe_lock_holder(path: Path) -> str:
+    """Best-effort: name the process(es) holding ``path`` via ``lsof``.
+
+    Returns an empty string when ``lsof`` is unavailable or the probe
+    fails. Output format is one ``PID NNN (cmd...)`` token per holder,
+    space-joined. POSIX-only; on Windows this is a no-op.
+    """
+    if sys.platform == "win32":  # pragma: no cover
+        return ""
+    import shutil
+    import subprocess
+
+    lsof = shutil.which("lsof")
+    if not lsof:
+        return ""
+    try:
+        out = subprocess.run(
+            [lsof, "-Fpc", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    if out.returncode != 0:
+        return ""
+    pid: str | None = None
+    holders: list[str] = []
+    for line in out.stdout.splitlines():
+        if not line:
+            continue
+        tag, rest = line[0], line[1:]
+        if tag == "p":
+            pid = rest
+        elif tag == "c" and pid is not None:
+            holders.append(f"PID {pid} ({rest})")
+            pid = None
+    return " ".join(holders)
+
+
 def _try_acquire_writer_lock(fd: int) -> bool:
     """Try to acquire an exclusive non-blocking lock on ``fd``.
 
@@ -154,9 +195,12 @@ class SQLiteCheckpointer:
         fd = os.open(self._path, os.O_RDWR | os.O_CREAT, 0o644)
         if not _try_acquire_writer_lock(fd):
             os.close(fd)
+            holder = _describe_lock_holder(self._path)
+            holder_msg = f" (held by {holder})" if holder else ""
             raise CheckpointError(
                 "multi-process writer not supported in v1; "
-                "only one process may hold a writer connection",
+                "only one process may hold a writer connection"
+                f"{holder_msg}",
                 path=str(self._path),
                 reason="concurrent-writer",
             )

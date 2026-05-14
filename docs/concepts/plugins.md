@@ -8,4 +8,8 @@ Harbor uses a two-stage plugin loader built on `importlib.metadata` entry points
 - **Compatibility gating.** Manifests are read from the dist-info; an incompatible plugin never imports.
 - **Hook composition.** Once gated, `pluggy` registers the module and composes hooks deterministically.
 
-> TODO: link to the hookspec catalog in `reference/plugin-manifest.md` once it lists the nine hooks declared by Harbor core.
+## Reference
+
+- [PluginManifest schema, entry-point groups, two-stage loader](../reference/plugin-manifest.md)
+- [Hookspec catalog (collect-all vs firstresult, full signatures)](../reference/hookspecs.md)
+- [Skills (Skill model, ReactSkill, salience, refs)](../reference/skills.md)

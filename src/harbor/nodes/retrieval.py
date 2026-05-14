@@ -147,7 +147,7 @@ class RetrievalNode(NodeBase):
                     },
                 )
 
-        fused = await self._rerank.fuse(per_store, k=self._k)
+        fused = await self._rerank.fuse(per_store, k=self._k, query=query)
         return {"retrieved": fused}
 
     async def _dispatch(

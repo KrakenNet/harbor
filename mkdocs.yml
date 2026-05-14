@@ -45,12 +45,24 @@ nav:
       - Overview: tutorials/index.md
       - First graph: tutorials/first-graph.md
       - Add a Fathom rule pack: tutorials/fathom-rules.md
+      - Agent with retrieval: tutorials/agent-with-retrieval.md
+      - HITL graph: tutorials/hitl-graph.md
+      - ML node graph: tutorials/ml-node-graph.md
+      - Serve and replay: tutorials/serve-and-replay.md
   - How-to Guides:
       - Overview: how-to/index.md
       - Write a tool plugin: how-to/write-tool-plugin.md
+      - Build a skill: how-to/build-skill.md
+      - Build a graph: how-to/build-graph.md
+      - Build an agent: how-to/build-agent.md
       - Author a Bosun pack: how-to/bosun-pack.md
       - Persist with checkpointer: how-to/checkpointer.md
-      - Air-gap deployment: guides/air-gap-deployment.md
+      - Add a rule pack: how-to/add-rule-pack.md
+      - Add a store provider: how-to/add-store-provider.md
+      - Add a trigger: how-to/add-trigger.md
+      - Add an MCP server: how-to/add-mcp-server.md
+      - Add a Nautilus source: how-to/add-nautilus-source.md
+      - Air-gap deployment (operator playbook): guides/air-gap-deployment.md
   - Security:
       - STRIDE threat model: security/threat-model.md
       - Sign-off rubric: security/sign-off.md
@@ -84,17 +96,51 @@ nav:
       - Memory: knowledge/memory.md
       - Retrieval: knowledge/retrieval.md
       - Cypher subset: knowledge/cypher-subset.md
-      - Air-gap deployment: knowledge/air-gap.md
+      - Air-gap (model staging): knowledge/air-gap.md
       - Reference skills tutorial: knowledge/reference-skills.md
   - Explanation:
       - Versioning policy: explanation/versioning.md
       - Fathom gaps: explanation/fathom-gaps.md
   - Reference:
-      - Python API: reference/python/index.md
       - IR JSON Schema: reference/ir-schema.md
       - Plugin manifest: reference/plugin-manifest.md
+      - Hookspecs: reference/hookspecs.md
       - CLI: reference/cli.md
+      - Tools: reference/tools.md
+      - Skills: reference/skills.md
       - Release signing: reference/signing.md
+      - v1 limits: reference/v1-limits.md
+      - Nodes:
+          - Overview: reference/nodes/index.md
+          - NodeBase: reference/nodes/base.md
+          - DSPyNode: reference/nodes/dspy.md
+          - MLNode: reference/nodes/ml.md
+          - MemoryWriteNode: reference/nodes/memory.md
+          - RetrievalNode: reference/nodes/retrieval.md
+          - SubGraphNode: reference/nodes/subgraph.md
+          - WriteArtifactNode: reference/nodes/write-artifact.md
+          - InterruptNode: reference/nodes/interrupt.md
+          - BrokerNode: reference/nodes/broker.md
+      - Stores:
+          - Overview: reference/stores/index.md
+          - Vector: reference/stores/vector.md
+          - Graph: reference/stores/graph.md
+          - Doc: reference/stores/doc.md
+          - Memory: reference/stores/memory.md
+          - Fact: reference/stores/fact.md
+          - Embeddings: reference/stores/embeddings.md
+          - Rerankers: reference/stores/rerankers.md
+      - Adapters:
+          - Overview: reference/adapters/index.md
+          - DSPy: reference/adapters/dspy.md
+          - MCP: reference/adapters/mcp.md
+      - Triggers:
+          - Overview: reference/triggers/index.md
+          - Manual: reference/triggers/manual.md
+          - Cron: reference/triggers/cron.md
+          - Webhook: reference/triggers/webhook.md
+      - Validation reports:
+          - CVE pipeline (Phase-5): validation/cve-pipeline-report.md
 
 markdown_extensions:
   - admonition

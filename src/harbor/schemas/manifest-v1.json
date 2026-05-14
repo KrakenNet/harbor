@@ -30,7 +30,9 @@
           "tool",
           "skill",
           "store",
-          "pack"
+          "pack",
+          "trigger",
+          "mcp_adapter"
         ],
         "type": "string"
       },

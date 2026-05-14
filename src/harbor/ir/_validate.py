@@ -34,6 +34,10 @@ from ._ids import validate_node_id, validate_pack_id, validate_rule_id
 from ._models import IRDocument
 from ._versioning import check_version
 
+# IR-time Cypher lint hook. Lazily imported so a YAML-only IR doesn't
+# pull graphglot when no node config carries Cypher. The Linter's
+# constructor is cheap; the parse runs only on encountered strings.
+
 if TYPE_CHECKING:
     from pydantic_core import ErrorDetails
 
@@ -165,6 +169,115 @@ def validate(ir: dict[str, Any] | str) -> list[ValidationError]:
     if id_errors:
         return id_errors
 
+    # Stage 5 (FR-17 amendment): within-IR namespace duplicate detection.
+    # Plugin loader handles cross-distribution conflicts; this catches the
+    # YAML-author case where a single IR document declares two nodes/rules
+    # with the same id (or two pack mounts / tool refs / skill refs / store
+    # refs colliding within their own list).
+    dup_errors = _detect_within_ir_duplicates(doc)
+    if dup_errors:
+        return dup_errors
+
+    # Stage 6 (TODO-#16): pre-lint Cypher literals embedded in NodeSpec
+    # configs so a malformed query in a packed graph fails IR validation
+    # rather than the first cypher store call. Conventional config keys:
+    # ``cypher`` and any ``*_cypher`` (e.g. ``filter_cypher``).
+    cypher_errors = _lint_cypher_in_node_configs(doc)
+    if cypher_errors:
+        return cypher_errors
+
     if isinstance(parsed, dict):
         return check_version(cast("dict[str, Any]", parsed))
     return []
+
+
+def _detect_within_ir_duplicates(doc: IRDocument) -> list[ValidationError]:
+    """Stage 5: flag duplicate ids within each IR namespace.
+
+    Each list (nodes, rules, governance, tools, skills, stores) maintains
+    its own id namespace; collisions across namespaces are allowed
+    (a node id matching a rule id is fine — different roles). Within
+    a single list, duplicates would cause non-deterministic dispatch /
+    pack-load behavior, so they fail loudly here.
+
+    The store list keys on ``name`` rather than ``id`` because
+    :class:`StoreRef` exposes ``name`` not ``id``.
+    """
+    errors: list[ValidationError] = []
+    pairs: list[tuple[str, list[Any], str]] = [
+        ("nodes", list(doc.nodes), "id"),
+        ("rules", list(doc.rules), "id"),
+        ("governance", list(doc.governance), "id"),
+        ("tools", list(doc.tools), "id"),
+        ("skills", list(doc.skills), "id"),
+        ("stores", list(doc.stores), "name"),
+    ]
+    for field_name, items, key_attr in pairs:
+        seen: dict[str, int] = {}
+        for idx, item in enumerate(items):
+            value = getattr(item, key_attr, None)
+            if not isinstance(value, str):
+                continue
+            prior = seen.get(value)
+            if prior is not None:
+                errors.append(
+                    ValidationError(
+                        "IR validation failed",
+                        path=f"/{field_name}/{idx}/{key_attr}",
+                        expected=f"unique {key_attr} within {field_name}",
+                        actual=value,
+                        hint=(
+                            f"duplicate {key_attr} {value!r} also at "
+                            f"/{field_name}/{prior}/{key_attr}"
+                        ),
+                    ),
+                )
+            else:
+                seen[value] = idx
+    return errors
+
+
+def _lint_cypher_in_node_configs(doc: IRDocument) -> list[ValidationError]:
+    """Stage 6: parse + AST-lint any Cypher literals in NodeSpec configs.
+
+    Walks each :class:`NodeSpec.config` for keys named ``cypher`` or any
+    ``*_cypher`` suffix, and runs the canonical
+    :class:`harbor.stores.cypher.Linter` against the string value.
+    Parse errors and unportable-subset rejections (banned procs,
+    unbounded varlen paths, YIELD *, path comprehension, CALL
+    subqueries) all surface as :class:`ValidationError` rows so a
+    malformed packed graph fails IR validation rather than at first
+    store call. Non-string values are skipped silently — callers may
+    embed structured query builders that are not raw strings.
+    """
+    errors: list[ValidationError] = []
+    linter: Any = None  # lazy
+
+    for n_idx, node in enumerate(doc.nodes):
+        if not isinstance(node.config, dict):
+            continue
+        for key, value in node.config.items():
+            if not _is_cypher_key(key) or not isinstance(value, str):
+                continue
+            if linter is None:
+                from harbor.stores.cypher import Linter
+
+                linter = Linter()
+            try:
+                linter.check(value)
+            except Exception as exc:  # noqa: BLE001 - any lint failure surfaces
+                errors.append(
+                    ValidationError(
+                        "IR validation failed",
+                        path=f"/nodes/{n_idx}/config/{key}",
+                        expected="portable Cypher subset (graphglot neo4j dialect)",
+                        actual=value[:80],
+                        hint=str(exc),
+                    ),
+                )
+    return errors
+
+
+def _is_cypher_key(key: str) -> bool:
+    """Return True if ``key`` conventionally carries a Cypher literal."""
+    return key == "cypher" or key.endswith("_cypher")

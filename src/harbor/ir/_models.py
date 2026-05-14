@@ -27,6 +27,7 @@ from harbor.tools.spec import ReplayPolicy, SideEffects
 __all__ = [
     "Action",
     "AssertAction",
+    "CheckpointBlock",
     "FactTemplate",
     "GotoAction",
     "HaltAction",
@@ -239,10 +240,31 @@ class PackMount(IRBase):
 
 
 class NodeSpec(IRBase):
-    """Graph node descriptor (POC: id + kind; later tasks add IO and config)."""
+    """Graph node descriptor.
+
+    Attributes:
+        id: Node identifier, unique within the IR.
+        kind: Either a short kind registered in
+            :data:`harbor.cli.run._NODE_FACTORIES`
+            (``echo``/``halt``/``passthrough``/``tool``/``broker``/
+            ``write_artifact``/``interrupt``/``ml``/``subgraph``/``dspy``)
+            or a ``module.path:ClassName`` reference imported via
+            :mod:`importlib`.
+        spec: Optional subgraph file path (relative to the IR YAML)
+            for ``kind: subgraph`` nodes. Resolved by
+            :class:`harbor.nodes.subgraph.SubGraphNode` at construction.
+            ``None`` for non-subgraph nodes.
+        config: Optional per-node config dict. Forwarded as kwargs into
+            the node factory by
+            :func:`harbor.cli.run._build_node_registry` so concrete node
+            classes (``BrokerNode``/``MLNode``/``WriteArtifactNode``)
+            can read their own config without sub-classing per call site.
+    """
 
     id: str
     kind: str
+    spec: str | None = None
+    config: dict[str, Any] = Field(default_factory=dict)
 
 
 class RuleSpec(IRBase):
@@ -251,11 +273,26 @@ class RuleSpec(IRBase):
     ``then`` is a list of :data:`Action` -- the discriminated union; the
     FR-11 "no nesting" constraint is enforced by the type itself (variants
     cannot themselves contain :data:`Action` fields).
+
+    Attributes:
+        id: Rule identifier, unique within the IR.
+        when: CLIPS-style ``when`` pattern (free text; engine parses).
+        then: Discriminated-union list of routing/control actions.
+        node_id: Owning node id. Introduced in IR ``1.1.0`` for UI /
+            topology consumers (so a rule's source node is explicit
+            rather than inferred from a naming convention). Optional for
+            backward compatibility -- documents declaring
+            ``ir_version: "1.0.0"`` may omit it; loaders MAY fill it via
+            the ``rule_id`` prefix heuristic so downstream tools
+            (``harbor inspect``, StarGraph topology endpoint) can assume
+            non-null. New graphs at ``1.1.0`` SHOULD declare ``node_id``
+            explicitly.
     """
 
     id: str
     when: str = ""
     then: list[Action] = Field(default_factory=list[Action])
+    node_id: str | None = None
 
 
 class ParallelBlock(IRBase):
@@ -271,6 +308,27 @@ class MigrateBlock(IRBase):
 
     from_hash: str
     to_hash: str
+
+
+class CheckpointBlock(IRBase):
+    """Checkpoint policy declaration (design §3.1.2 step 7).
+
+    Top-level IR field that declares the checkpoint cadence and
+    backing store. The CLI / serve lifespan reads this block and
+    constructs the :class:`harbor.checkpoint.Checkpointer`. When
+    omitted, the run loop uses CLI defaults
+    (``./.harbor/run.sqlite``, ``every: node-exit``).
+
+    Attributes:
+        every: Cadence — currently only ``"node-exit"`` is supported;
+            ``"never"`` and ``"step-N"`` are reserved for future
+            phases.
+        store: DSN-style store binding. ``"sqlite:./path.sqlite"``
+            (file) or ``"postgres:dsn"`` (Phase 3+).
+    """
+
+    every: Literal["node-exit", "never"] = "node-exit"
+    store: str = "sqlite:./.harbor/run.sqlite"
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +362,7 @@ class IRDocument(IRBase):
     parallel: list[ParallelBlock] = Field(default_factory=list[ParallelBlock])
     governance: list[PackMount] = Field(default_factory=list[PackMount])
     migrate: list[MigrateBlock] = Field(default_factory=list[MigrateBlock])
+    checkpoints: CheckpointBlock | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -369,7 +428,7 @@ class PluginManifest(IRBase):
     version: str
     api_version: Literal["1"]
     namespaces: list[str]
-    provides: list[Literal["tool", "skill", "store", "pack"]]
+    provides: list[Literal["tool", "skill", "store", "pack", "trigger", "mcp_adapter"]]
     order: Annotated[int, Field(default=5000, ge=0, le=10000)]
 
 

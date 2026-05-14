@@ -303,6 +303,13 @@ class GraphRun:
         self.checkpointer = checkpointer
         self.capabilities = capabilities
         self.fathom = fathom
+        # Per-node cassette wiring (design §10.3). ``node_cassette`` is
+        # ``None`` until a caller wires one; ``node_id`` is stamped by
+        # :func:`harbor.runtime.dispatch.dispatch_node` for the duration
+        # of each node body so write-side-effect nodes can key cassette
+        # entries by ``(node_id, step)``.
+        self.node_cassette: Any = None
+        self.node_id: str = ""
         # Per-run primitives: each :class:`GraphRun` owns a fresh bus + mirror
         # scheduler. Cloning sender handles for parallel branches lands in
         # Phase 3; v1 is single-consumer (the ``stream()`` async iterator).

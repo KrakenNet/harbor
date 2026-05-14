@@ -58,7 +58,7 @@ import contextlib
 import hashlib
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, NamedTuple, Protocol, runtime_checkable
 from zoneinfo import ZoneInfo
 
 import anyio
@@ -77,11 +77,26 @@ _logger = logging.getLogger(__name__)
 
 
 __all__ = [
+    "EnqueueHandle",
     "PendingRun",
     "PendingStore",
     "QueueItem",
     "Scheduler",
 ]
+
+
+class EnqueueHandle(NamedTuple):
+    """Result of :meth:`Scheduler.enqueue`: ``(run_id, future)``.
+
+    ``run_id`` is the canonical id derived from
+    ``(graph_id, idempotency_key)``; callers need it synchronously to
+    return / persist the run handle. ``future`` resolves to the
+    terminal :class:`RunSummary` -- most production callers discard
+    it and retrieve the run via ``GET /v1/runs/{run_id}``.
+    """
+
+    run_id: str
+    future: asyncio.Future[RunSummary]
 
 
 #: Default per-``graph_hash`` concurrency limit. The IR has no
@@ -283,6 +298,11 @@ class Scheduler:
         # can compute ``duration_ms = now - started_at`` on terminal
         # transition. Cleared on terminal write to bound the dict size.
         self._enqueue_started_at = {}
+        # Lifespan deps container injected by :meth:`set_deps`. When
+        # set and ``deps["graphs"][graph_id]`` resolves to a Graph,
+        # ``_run_one`` drives a real :class:`GraphRun`; otherwise it
+        # falls back to a synthetic POC summary (unit tests).
+        self._deps: dict[str, Any] | None = None
 
     # ------------------------------------------------------------------ #
     # Lifecycle                                                          #
@@ -374,6 +394,30 @@ class Scheduler:
     # Public enqueue + cron registration                                 #
     # ------------------------------------------------------------------ #
 
+    def set_deps(self, deps: dict[str, Any]) -> None:
+        """Inject the lifespan-managed deps container.
+
+        Read by :meth:`_run_one` to resolve ``graph_id`` -> Graph and
+        register the live run handle / broadcaster on
+        ``deps["runs"]`` / ``deps["broadcasters"]``. When unset (or
+        the requested graph is missing), the dispatcher falls back to
+        the synthetic POC :class:`RunSummary` for isolated unit tests.
+        """
+        self._deps = deps
+
+    def set_run_history(self, run_history: "RunHistory") -> None:
+        """Inject a :class:`RunHistory` after construction.
+
+        cli/serve.py and other lifespan factories create the Scheduler
+        BEFORE the Checkpointer / RunHistory are bootstrapped (the
+        Checkpointer's aiosqlite connection isn't live yet). Without
+        this setter, ``_record_history_pending`` no-ops because
+        ``self._run_history is None``, which makes POST /v1/runs queue
+        a row that never lands in ``runs_history`` -- GET /v1/runs
+        returns empty and GET /v1/runs/{id} 404s on the synthetic id.
+        """
+        self._run_history = run_history
+
     def enqueue(
         self,
         graph_id: str,
@@ -381,15 +425,19 @@ class Scheduler:
         idempotency_key: str | None = None,
         *,
         trigger_source: TriggerSource = "manual",
-    ) -> asyncio.Future[RunSummary]:
-        """Enqueue a run; return an awaitable resolving to :class:`RunSummary`.
+    ) -> EnqueueHandle:
+        """Enqueue a run; return ``(run_id, future)``.
 
         Sync to preserve the task-1.21 POC contract used by the FastAPI
         ``POST /v1/runs`` route + ``CronTrigger._fire``. The durable
         pending-row write + the ``runs_history`` insert are scheduled
         as background :class:`asyncio.Task` instances (no caller await
         needed) so the route handler returns ``202 Accepted``
-        immediately.
+        immediately. The returned :class:`EnqueueHandle` exposes the
+        canonical ``run_id`` synchronously so callers (FastAPI route,
+        ManualTrigger) can hand it back to the client without awaiting
+        the future. ``future`` resolves to the terminal
+        :class:`RunSummary`.
 
         ``trigger_source`` records the originating subsystem (manual,
         cron, webhook) so the ``runs_history`` row can be filtered by
@@ -447,7 +495,7 @@ class Scheduler:
                 self._record_history_pending(run_id, graph_id, trigger_source),
                 name=f"harbor.serve.scheduler.history_insert.{run_id}",
             )
-        return future
+        return EnqueueHandle(run_id=run_id, future=future)
 
     def register_cron(self, spec: CronSpec) -> None:
         """Register a :class:`CronSpec` with the scheduler's internal cron loop.
@@ -584,6 +632,15 @@ class Scheduler:
             try:
                 summary = await self._run_one(item)
             except BaseException as exc:
+                # Log before swallowing: HTTP-triggered runs have no
+                # awaiter on item.future, so an unlogged set_exception
+                # makes errors silent (run flips to status=error in
+                # runs_history with no diagnostic).
+                _logger.exception(
+                    "Scheduler dispatcher run failed: run_id=%s graph_id=%s",
+                    item.pending.run_id,
+                    item.pending.graph_id,
+                )
                 if not item.future.done():
                     item.future.set_exception(exc)
                 # Terminal: clear the pending row + record failure
@@ -606,34 +663,95 @@ class Scheduler:
         await self._record_history_terminal(item.pending.run_id, status=summary.status)
 
     async def _run_one(self, item: QueueItem) -> RunSummary:
-        """Drive one run to completion. POC stub returns a synthetic summary.
+        """Drive one run to completion.
 
-        The real Phase 2 implementation (task 2.30 lifespan wiring):
-
-        1. Loads the parent :class:`harbor.graph.Graph` via the registry
-           keyed on ``item.pending.graph_id``.
-        2. Constructs a :class:`harbor.graph.GraphRun` with the wired
-           checkpointer + bus + capabilities.
-        3. ``await run.start()`` to drive the loop and return its
-           :class:`RunSummary`.
-
-        For now, returns a synthetic terminal :class:`RunSummary` so
-        cron-loop + dispatcher + limiter behavior can be verified
-        without a real graph + IR + Fathom adapter. The
-        ``side_effects_hash`` slot is a deterministic placeholder
-        derived from the ``run_id`` so two synthetic summaries are
-        distinguishable in tests; the lifespan factory replaces the
-        entire body.
+        Real path: resolve ``graph_id`` -> Graph via the lifespan deps,
+        build a :class:`GraphRun`, register handle + broadcaster, and
+        drive it to terminal state. Synthetic POC fallback (no deps or
+        unknown graph) returns a placeholder :class:`RunSummary` so
+        isolated scheduler tests still exercise the queue / limiter /
+        cron paths.
         """
-        now = datetime.now(UTC)
-        return RunSummary(
-            run_id=item.pending.run_id,
-            graph_hash=item.pending.graph_id,
-            started_at=now,
-            last_step_at=now,
-            status="done",
-            parent_run_id=None,
+        graph = self._lookup_graph(item.pending.graph_id)
+        if graph is None:
+            now = datetime.now(UTC)
+            return RunSummary(
+                run_id=item.pending.run_id,
+                graph_hash=item.pending.graph_id,
+                started_at=now,
+                last_step_at=now,
+                status="done",
+                parent_run_id=None,
+            )
+        return await self._drive_real_run(item, graph)
+
+    def _lookup_graph(self, graph_id: str) -> Any | None:
+        """Return the registered Graph for ``graph_id`` or ``None``."""
+        if self._deps is None:
+            return None
+        graphs = self._deps.get("graphs") or {}
+        return graphs.get(graph_id)
+
+    async def _drive_real_run(self, item: QueueItem, graph: Any) -> RunSummary:
+        """Build a :class:`GraphRun`, register handle + broadcaster, drive to terminal.
+
+        Atomicity: both ``deps["runs"]`` and ``deps["broadcasters"]``
+        entries are written *before* the first ``await``, so route
+        handlers never observe a partial registration. The broadcaster
+        consumer task is spawned via :func:`asyncio.create_task` so WS
+        subscribers actually receive events (the broadcaster's pump is
+        not auto-started by its constructor).
+
+        Cleanup: on any exception from :meth:`GraphRun.start` the run +
+        broadcaster entries are popped so a failed start does not leak
+        a phantom handle that ``GET /v1/runs/{run_id}`` would surface
+        as perpetual ``pending``. Successful runs leave their entries
+        in place so post-terminal GETs / slow WS clients can still
+        observe state.
+        """
+        from harbor.graph.run import GraphRun
+        from harbor.serve.broadcast import EventBroadcaster
+
+        deps = self._deps
+        assert deps is not None  # _run_one already verified the graph lookup
+
+        run_id = item.pending.run_id
+        node_registry = deps.get("node_registry") or {}
+        per_graph_nodes = node_registry.get(item.pending.graph_id)
+
+        initial_state = graph.state_schema(**dict(item.pending.params or {}))
+        run = GraphRun(
+            run_id=run_id,
+            graph=graph,
+            initial_state=initial_state,
+            node_registry=per_graph_nodes,
+            checkpointer=deps.get("checkpointer"),
+            capabilities=deps.get("capabilities"),
         )
+        broadcaster = EventBroadcaster(run.bus)
+
+        runs_reg: dict[str, GraphRun] = deps.setdefault("runs", {})
+        bcs_reg: dict[str, EventBroadcaster] = deps.setdefault("broadcasters", {})
+        runs_reg[run_id] = run
+        bcs_reg[run_id] = broadcaster
+        # Pump the broadcaster so WS subscribers actually receive
+        # events; exits on bus close (run termination). Fire-and-
+        # forget: failure is logged but does not affect the run.
+        bcs_task = asyncio.create_task(  # noqa: RUF006 - logged on failure
+            broadcaster.run(),
+            name=f"harbor.serve.broadcaster.{run_id}",
+        )
+
+        try:
+            return await run.start()
+        except BaseException:
+            # Pop on failure so the route does not surface a phantom
+            # handle stuck at "pending". Successful terminations leave
+            # the entries in place for post-terminal observers.
+            runs_reg.pop(run_id, None)
+            bcs_reg.pop(run_id, None)
+            bcs_task.cancel()
+            raise
 
     # ------------------------------------------------------------------ #
     # Helpers                                                            #
@@ -678,14 +796,26 @@ class Scheduler:
     def _derive_run_id(graph_id: str, idempotency_key: str) -> str:
         """Stable per-pending-row run_id.
 
-        Format ``run-{graph_id_8}-{key_12}`` keeps the id short enough
-        for log lines while still globally unique across the deployment
-        (graph hashes are sha256-prefixed; collisions across distinct
-        graph hashes are infeasible at v1 scale). The Phase 2 lifespan
-        factory may replace this with a UUID once the persisted
-        ``runs`` table (task 2.14) takes ownership of run-id minting.
+        Format ``run-{graph_id_8}-{blake2b_hash_12}``: the short
+        graph-id prefix keeps log lines scannable; the BLAKE2b hash
+        of the idempotency key avoids the prefix-collision class that
+        the previous ``idempotency_key[:12]`` slice silently hit when
+        callers minted keys with shared prefixes (e.g.
+        ``score-CVE-2021-44228-...`` and
+        ``score-CVE-2024-26130-...`` both truncate to
+        ``score-CVE-20`` and collapse onto the same run_id, which
+        clobbers per-CVE checkpoint history). Hash is BLAKE2b
+        (faster than SHA-256 for this size, no security boundary
+        here -- collision-resistant enough that 100k+ runs/graph
+        wouldn't see one). The Phase 2 lifespan factory may replace
+        this with a UUID once the persisted ``runs`` table (task
+        2.14) takes ownership of run-id minting.
         """
-        return f"run-{graph_id[:8]}-{idempotency_key[:12]}"
+        import hashlib  # local import: stdlib, only used here
+        digest = hashlib.blake2b(
+            idempotency_key.encode("utf-8"), digest_size=8
+        ).hexdigest()[:12]
+        return f"run-{graph_id[:8]}-{digest}"
 
     async def _persist_pending(self, pending: PendingRun) -> None:
         """Write ``pending`` to the :class:`PendingStore`; log + swallow on error.

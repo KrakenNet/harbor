@@ -88,6 +88,7 @@ class ProgressPrinter:
         self._tool_tokens = 0
         self._durations: dict[str, int] = {}
         self._final_state: dict[str, Any] | None = None
+        self._run_duration_ms: int | None = None
 
     async def consume(self, bus: EventBus) -> None:
         """Receive events from ``bus`` until terminal/aclose.
@@ -116,6 +117,10 @@ class ProgressPrinter:
         """Return ``ResultEvent.final_state`` if a terminal event was seen."""
         return self._final_state
 
+    def run_duration_ms(self) -> int | None:
+        """Return ``ResultEvent.run_duration_ms`` if a terminal event was seen."""
+        return self._run_duration_ms
+
     # -- handlers -------------------------------------------------------
 
     def feed(self, ev: Any) -> None:
@@ -140,13 +145,20 @@ class ProgressPrinter:
             self._on_waiting(ev)
         elif kind == "result":
             self._final_state = dict(getattr(ev, "final_state", {}) or {})
+            run_duration: Any = getattr(ev, "run_duration_ms", None)
+            if isinstance(run_duration, int):
+                self._run_duration_ms = run_duration
 
     def _on_transition(self, ev: Any) -> None:
         # Close out previous node (if any) and open the next.
         if self._current is not None:
             self._close_current(ev.ts)
         to_node: str = ev.to_node
-        if to_node not in _SENTINELS:
+        # Empty target = end-of-graph halt (dispatch.py emits "" when there is
+        # no next node); sentinels are __start__/__end__ markers. Neither
+        # represents a real node about to execute, so don't open an inflight
+        # for them — that would surface as a phantom step at run end.
+        if to_node and to_node not in _SENTINELS:
             self._step_counter += 1
             self._current = _NodeInflight(
                 node_id=to_node,

@@ -53,6 +53,7 @@ GROUPS: tuple[str, ...] = (
     "harbor.stores",
     "harbor.packs",
     "harbor.triggers",
+    "harbor.mcp_adapters",
 )
 """Entry-point groups discovered by the Harbor plugin loader."""
 

@@ -36,7 +36,7 @@ __all__ = [
 ]
 
 
-HARBOR_IR_VERSION = "1.0.0"
+HARBOR_IR_VERSION = "1.1.0"
 
 
 def parse_version(s: str) -> tuple[int, int, int]:

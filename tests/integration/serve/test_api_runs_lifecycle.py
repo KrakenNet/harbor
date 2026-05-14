@@ -25,8 +25,9 @@ Real wiring:
   on ``app.state.deps["runs"]``. This matches the existing POC harness
   (commit 3677f30, task 1.30) and isolates the cancel/lifecycle path
   from the synthetic Scheduler stub. ``POST /v1/runs`` is exercised
-  separately (and its synthesized ``poc-{graph_id}`` run_id is asserted)
-  but is not the run that the cancel route operates on.
+  separately (asserts the route returns the canonical
+  Scheduler-derived ``run_id``, not the legacy ``poc-{graph_id}``
+  stub) but is not the run that the cancel route operates on.
 * :class:`JSONLAuditSink` is wired via
   :data:`harbor.serve.contextvars._audit_sink_var.set(...)` so
   :func:`harbor.serve.lifecycle.cancel_run`'s audit-emit lands on disk
@@ -58,6 +59,7 @@ from harbor.serve.api import create_app
 from harbor.serve.broadcast import EventBroadcaster
 from harbor.serve.contextvars import _audit_sink_var
 from harbor.serve.profiles import OssDefaultProfile
+from harbor.serve.scheduler import EnqueueHandle, Scheduler
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -127,8 +129,8 @@ class _StubScheduler:
     Future immediately so no caller hangs.
 
     The lifecycle test asserts the route's ``202`` response shape and
-    the synthesized ``poc-{graph_id}`` run_id; we don't drive the
-    Scheduler's dispatcher path here -- that's covered by
+    that the returned ``run_id`` matches the canonical Scheduler-derived
+    id; we don't drive a real dispatcher here -- that's covered by
     ``tests/unit/serve/test_scheduler.py``.
     """
 
@@ -139,14 +141,18 @@ class _StubScheduler:
         idempotency_key: str | None = None,
         *,
         trigger_source: str = "manual",
-    ) -> asyncio.Future[RunSummary]:
-        del params, idempotency_key, trigger_source
+    ) -> EnqueueHandle:
+        del params, trigger_source
         loop = asyncio.get_running_loop()
         future: asyncio.Future[RunSummary] = loop.create_future()
         now = datetime.now(UTC)
+        # Mirror the real Scheduler's id derivation so the route's
+        # response matches the contract callers rely on.
+        key = idempotency_key or Scheduler._synth_idempotency_key(graph_id, now)
+        run_id = Scheduler._derive_run_id(graph_id, key)
         future.set_result(
             RunSummary(
-                run_id=f"poc-{graph_id}",
+                run_id=run_id,
                 graph_hash=graph_id,
                 started_at=now,
                 last_step_at=now,
@@ -154,7 +160,7 @@ class _StubScheduler:
                 parent_run_id=None,
             )
         )
-        return future
+        return EnqueueHandle(run_id=run_id, future=future)
 
 
 async def _wait_for_running(
@@ -191,9 +197,9 @@ async def test_full_run_lifecycle_post_get_cancel(tmp_path: Path) -> None:
     Asserts each leg of the lifecycle:
 
     1. ``POST /v1/runs`` returns ``202 Accepted`` with ``{run_id, status:
-       "pending"}``. The synthesized run_id matches the POC stub
-       (``poc-{graph_id}``) since the Phase-1 :class:`Scheduler` resolves
-       its future with a synthetic :class:`RunSummary`.
+       "pending"}``. The returned ``run_id`` is the canonical
+       Scheduler-derived hash of (graph_id, idempotency_key); the
+       legacy ``poc-{graph_id}`` stub is gone.
     2. ``GET /v1/runs/{run_id}`` returns ``200`` with a structured
        :class:`RunSummary` body for an in-memory-registered run; status
        reflects the live :attr:`GraphRun.state`.
@@ -265,9 +271,15 @@ async def test_full_run_lifecycle_post_get_cancel(tmp_path: Path) -> None:
                 assert start_body["status"] == "pending", (
                     f"unexpected start body status: {start_body!r}"
                 )
-                # POC scheduler synthesizes ``poc-{graph_id}``.
-                assert start_body["run_id"] == "poc-stub-graph", (
-                    f"unexpected synthesized run_id: {start_body!r}"
+                # Scheduler-derived run_id is a deterministic hash of
+                # (graph_id, idempotency_key); just assert the shape
+                # rather than a specific value (the synthesized
+                # idempotency key embeds wall-clock time).
+                assert isinstance(start_body["run_id"], str) and start_body["run_id"], (
+                    f"missing/empty run_id in start body: {start_body!r}"
+                )
+                assert start_body["run_id"] != f"poc-{'stub-graph'}", (
+                    "POST /v1/runs still returns the legacy poc-{graph_id} stub"
                 )
 
                 # ---- Step 2: GET /v1/runs/{run_id} -----------------------

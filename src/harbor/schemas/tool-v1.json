@@ -1,6 +1,29 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://harbor.dev/schemas/tool-v1.json",
+  "$defs": {
+    "ReplayPolicy": {
+      "description": "Tool replay policy (FR-33, FR-21, NFR-8, design 3.4.2).",
+      "enum": [
+        "must-stub",
+        "fail-loud",
+        "recorded-result"
+      ],
+      "title": "ReplayPolicy",
+      "type": "string"
+    },
+    "SideEffects": {
+      "description": "Tool side-effect classification (FR-33, design 3.4.2).",
+      "enum": [
+        "none",
+        "read",
+        "write",
+        "external"
+      ],
+      "title": "SideEffects",
+      "type": "string"
+    }
+  },
   "additionalProperties": false,
   "description": "Tool descriptor (AC-9.4): name, schemas, side-effects, cost, etc.\n\n``cost_estimate`` is ``Decimal | None`` per FR-9 (no float for monetary\nfields). All optional list/dict fields default to empty so a minimal\nspec only needs name/namespace/version/description/schemas/side_effects.",
   "properties": {
@@ -31,8 +54,11 @@
       "type": "object"
     },
     "side_effects": {
-      "title": "Side Effects",
-      "type": "boolean"
+      "$ref": "#/$defs/SideEffects"
+    },
+    "replay_policy": {
+      "$ref": "#/$defs/ReplayPolicy",
+      "default": "must-stub"
     },
     "permissions": {
       "items": {

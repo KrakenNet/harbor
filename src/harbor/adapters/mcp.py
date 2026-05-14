@@ -37,9 +37,12 @@ from harbor.ir import ToolSpec
 from harbor.tools.spec import ReplayPolicy, SideEffects
 
 if TYPE_CHECKING:
+    import pluggy
+
+    from harbor.plugin.types import MCPAdapterSpec
     from harbor.security import Capabilities
 
-__all__ = ["bind", "call_tool"]
+__all__ = ["bind", "call_tool", "collect_mcp_adapters"]
 
 
 # Per-session capability registry. ``bind`` records the :class:`Capabilities`
@@ -197,6 +200,21 @@ def _required_permissions(tool_name: str) -> list[str]:
 # ---------------------------------------------------------------------------
 # bind() and call_tool() -- the two-method public surface.
 # ---------------------------------------------------------------------------
+
+
+def collect_mcp_adapters(pm: pluggy.PluginManager) -> list[MCPAdapterSpec]:
+    """Aggregate ``register_mcp_adapters()`` returns across all loaded plugins.
+
+    Plugin authors register MCP adapters under the ``harbor.mcp_adapters``
+    entry-point group; their ``register_mcp_adapters()`` hookimpl returns
+    a list of :class:`~harbor.plugin.types.MCPAdapterSpec`. This helper
+    is the canonical aggregator used by serve / engine wiring at the
+    appropriate lifespan point.
+
+    Returns an empty list when no plugins contribute adapters.
+    """
+    results: list[list[MCPAdapterSpec]] = pm.hook.register_mcp_adapters()  # pyright: ignore[reportUnknownMemberType]
+    return [spec for batch in results for spec in batch]
 
 
 async def bind(

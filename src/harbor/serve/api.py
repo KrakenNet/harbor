@@ -685,24 +685,18 @@ def create_app(
     ) -> _StartRunResponse:
         """Enqueue a new run; return ``202 Accepted`` with the run handle.
 
-        The Scheduler returns an :class:`asyncio.Future` resolving to a
-        :class:`~harbor.checkpoint.protocol.RunSummary`; we synthesize a
-        ``run_id`` matching the POC stub (``poc-{graph_id}``) so callers
-        can immediately ``GET /v1/runs/{run_id}`` to poll for terminal
-        state. Phase 2 returns the canonical persisted run_id from the
-        Checkpointer.
+        ``handle.run_id`` is the Scheduler-derived canonical id from
+        ``(graph_id, idempotency_key)``; callers poll ``GET
+        /v1/runs/{run_id}`` for terminal state.
         """
         scheduler: Scheduler = app.state.deps["scheduler"]
-        scheduler.enqueue(
+        handle = scheduler.enqueue(
             graph_id=body.graph_id,
             params=body.params,
             idempotency_key=body.idempotency_key,
         )
-        # POC: synthesize the run_id from the Scheduler stub convention.
-        # Phase 2 wires the real run_id from the Checkpointer pending
-        # row written by Scheduler._enqueue (task 2.13).
         return _StartRunResponse(
-            run_id=f"poc-{body.graph_id}",
+            run_id=handle.run_id,
             status="pending",
         )
 

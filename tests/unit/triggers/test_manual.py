@@ -44,7 +44,20 @@ class _RecordingScheduler:
                 "trigger_source": trigger_source,
             }
         )
-        return None
+        # Mirror the real Scheduler return shape so callers that read
+        # ``handle.run_id`` (ManualTrigger after task #14) work. Tests
+        # never await the ``future`` slot, so we leave it as a typed-
+        # but-unusable sentinel rather than building an asyncio.Future
+        # under a sync test (which would need a running loop).
+        from datetime import UTC, datetime
+
+        from harbor.serve.scheduler import EnqueueHandle, Scheduler
+
+        key = idempotency_key or Scheduler._synth_idempotency_key(  # pyright: ignore[reportPrivateUsage]
+            graph_id, datetime.now(UTC)
+        )
+        run_id = Scheduler._derive_run_id(graph_id, key)  # pyright: ignore[reportPrivateUsage]
+        return EnqueueHandle(run_id=run_id, future=None)  # pyright: ignore[arg-type]
 
 
 @pytest.fixture
@@ -84,9 +97,9 @@ def test_manual_enqueue_delegates_to_scheduler(
     assert sched.calls[0]["graph_id"] == "graph-x"
     assert sched.calls[0]["params"] == {"alpha": 1}
     assert isinstance(run_id, str)
-    # Synthesized run_id format follows the documented `poc-{graph_id}` shape
-    # (Phase 2 will swap for the canonical Checkpointer-persisted id).
-    assert "graph-x" in run_id
+    # Canonical Scheduler-derived run_id is a hex hash, not a synthesized
+    # ``poc-{graph_id}`` stub; just assert non-empty + hex-ish shape.
+    assert len(run_id) >= 8
 
 
 def test_manual_cli_and_http_convergence(

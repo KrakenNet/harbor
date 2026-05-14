@@ -52,8 +52,20 @@ async for event in run.stream():   # observe transitions
     ...
 ```
 
-Lifecycle states (`pending|running|paused|done|failed`) are exposed on
-`run.state` for inspection but transitioned only by the run loop.
+Lifecycle states
+(`pending|running|paused|awaiting-input|done|cancelled|error|failed`)
+are exposed on `run.state` for inspection but transitioned only by the
+run loop.
+
+The `awaiting-input` state is reached when a node raises
+`InterruptAction`. The loop emits `WaitingForInputEvent`, transitions
+state, and **returns** — it does not poll for a transition back to
+`running`. Resume is **cold-restart-only** in v1: stop the process,
+call `GraphRun.respond(...)` (which flips state and asserts the
+response as a `harbor.evidence` Fathom fact), then restart with
+`GraphRun.resume(checkpoint)`. Warm in-process resume is on the
+post-1.0 roadmap; see [v1 limits](../reference/v1-limits.md) for the
+boundary list.
 
 See:
 

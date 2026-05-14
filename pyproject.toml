@@ -49,6 +49,9 @@ dependencies = [
     "blake3>=0.4",
     "argon2-cffi>=23.1",
     "jinja2>=3.1.6",
+    "graphglot>=0.11.0",
+    "redis>=7.4.0",
+    "python-docx>=1.2.0",
 ]
 
 [project.optional-dependencies]
@@ -74,6 +77,10 @@ stores = [
 skills-rag = [
     "sentence-transformers>=5.0,<6",
     "huggingface_hub>=0.25",
+    # Declare torch as a direct dep so the [tool.uv.sources] CPU pin
+    # below applies (uv <0.9 only honors the source map for direct
+    # deps, not transitives pulled by sentence-transformers).
+    "torch>=2.1",
 ]
 
 [project.urls]
@@ -91,8 +98,11 @@ harbor = "harbor.cli:main"
 # (reserved — Harbor itself does not register here; downstream plugins use it
 #  for the harbor_plugin manifest entry-point)
 
-# Note: harbor.{tools,skills,stores,packs} have NO core entries — they are
-# entirely populated by external plugin distributions.
+# Note: harbor.{tools,skills,stores,packs,mcp_adapters} have NO core entries —
+# they are entirely populated by external plugin distributions. The
+# ``harbor.mcp_adapters`` group is the discovery path for MCP-server adapter
+# plugins (FR-25, design §3.3.2). Each plugin's ``register_mcp_adapters()``
+# hookimpl returns a list of :class:`harbor.plugin.types.MCPAdapterSpec`.
 
 # Built-in trigger plugins (design §6.3, FR-3/4/5). Cron + Webhook land in
 # tasks 2.10 / 2.11; manual is the simplest baseline (CLI + HTTP convergence).
@@ -105,6 +115,16 @@ webhook = "harbor.triggers.webhook:WebhookTrigger"
 # `@tool`-decorated coroutine that calls the lifespan-singleton Broker.
 [project.entry-points."harbor.tools"]
 broker_request = "harbor.tools.nautilus.broker_request:broker_request"
+servicenow_create_change_request = "harbor.tools.servicenow.create_change_request:create_change_request"
+servicenow_cmdb_query_software = "harbor.tools.servicenow.cmdb_query_software:cmdb_query_software"
+servicenow_cmdb_traverse_runs_on = "harbor.tools.servicenow.cmdb_traverse_runs_on:cmdb_traverse_runs_on"
+servicenow_cmdb_resolve_hosts = "harbor.tools.servicenow.cmdb_resolve_hosts:cmdb_resolve_hosts"
+
+# Built-in reranker plug-ins discoverable through harbor.stores._rerank_loader.
+# RRFReranker is the always-available default; cross-encoder requires the
+# ``skills-rag`` extra (sentence-transformers + torch) at runtime.
+[project.entry-points."harbor.rerankers"]
+cross-encoder = "harbor.stores.rerankers:CrossEncoderReranker"
 
 [dependency-groups]
 dev = [
@@ -135,16 +155,24 @@ release = [
     "twine>=5.0",
 ]
 
-[tool.uv]
 # Force the CPU-only PyTorch wheels (~200 MB) instead of the full CUDA
 # stack (~3 GB of nvidia-* wheels) that sentence-transformers' transitive
 # torch dependency would otherwise resolve to. CI runners have no GPU and
 # the CPU wheel is functionally equivalent for the test/lint surface.
-# Setting this in pyproject (instead of relying on UV_TORCH_BACKEND env)
-# guarantees it is honored across every uv invocation -- the env var is
-# only honored when a backend is being negotiated, which depends on
-# project config being present in the first place.
-torch-backend = "cpu"
+#
+# Implementation: pin torch (and the typical torch-family transitive
+# deps) to the PyTorch CPU index via [tool.uv.sources]. Identical intent
+# to `[tool.uv].torch-backend = "cpu"` (added in uv 0.9.0) but works on
+# every uv version we still support.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+torchvision = [{ index = "pytorch-cpu" }]
+torchaudio = [{ index = "pytorch-cpu" }]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/harbor"]
@@ -176,6 +204,17 @@ reportMissingTypeStubs = "warning"
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "--strict-markers --cov=harbor --cov-branch -ra"
+# Third-party deprecations we don't own. Keep this list narrow: each
+# entry must name an external package whose deprecation we can't fix
+# upstream, otherwise warnings remain visible.
+filterwarnings = [
+    "ignore:The 'prefix' argument in InputField/OutputField is deprecated:DeprecationWarning:dspy.*",
+    "ignore::DeprecationWarning:nautilus.*",
+    # Pydantic v2 emits this for StrEnum fields whose `value` is dumped
+    # under `mode='json'`; cve_remediation state uses StrEnum heavily and
+    # the projection is intentional. Filter is scoped to pydantic only.
+    "ignore:.*StrEnum.*:DeprecationWarning:pydantic.*",
+]
 markers = [
     "unit: fast unit tests (no external deps)",
     "integration: requires Fathom CLIPS / external services",

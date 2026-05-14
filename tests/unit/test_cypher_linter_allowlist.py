@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import pytest
 
+from harbor.errors import UnportableCypherError
 from harbor.stores.cypher import Linter
 
 
@@ -97,9 +98,20 @@ def test_exists_subquery_allowed() -> None:
 
 @pytest.mark.knowledge
 @pytest.mark.unit
-def test_count_subquery_allowed() -> None:
-    """`COUNT { ... }` is the count-aggregating subquery."""
-    Linter().check("MATCH (n:Doc) RETURN n, COUNT { MATCH (n)-[:REL]->(m) RETURN m } AS c")
+def test_count_subquery_rejected() -> None:
+    """`COUNT { MATCH ... RETURN ... }` is a Neo4j-5+ subquery expression
+    that RyuGraph does not implement.
+
+    The prior regex-based linter accepted this form because it could not
+    distinguish a count subquery from a plain `COUNT()` aggregation. The
+    AST-based linter (graphglot's neo4j-2025+ dialect) rejects it at
+    parse time — correct for the portable subset, since the underlying
+    graph backend cannot execute it.
+    """
+    with pytest.raises(UnportableCypherError):
+        Linter().check(
+            "MATCH (n:Doc) RETURN n, COUNT { MATCH (n)-[:REL]->(m) RETURN m } AS c"
+        )
 
 
 @pytest.mark.knowledge

@@ -117,13 +117,11 @@ class ManualTrigger:
                 "ManualTrigger.enqueue() requires init(deps) to have been called; "
                 "the scheduler reference is not set"
             )
-        self._scheduler.enqueue(
+        handle = self._scheduler.enqueue(
             graph_id=graph_id,
             params=params,
             idempotency_key=idempotency_key,
         )
-        # POC: synthesize the run_id from the Scheduler stub convention,
-        # matching ``POST /v1/runs`` in :mod:`harbor.serve.api`. Phase 2
-        # task 2.13 returns the canonical persisted run_id from the
-        # Checkpointer pending row.
-        return f"poc-{graph_id}"
+        # Manual callers poll ``GET /v1/runs/{run_id}`` for terminal
+        # state; the future stays on the scheduler.
+        return handle.run_id
